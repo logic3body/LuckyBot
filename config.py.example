@@ -12,3 +12,8 @@ CREDENTIAL = {
     "bili_jct": "your_bili_jct_here",
     "buvid3": "your_buvid3_here",
 }
+
+# Server酱 SCKEY（用于推送中奖通知）
+# 申请地址: https://sct.ftqq.com/
+# 留空则不启用推送
+SERVERCHAN_SCKEY = ""

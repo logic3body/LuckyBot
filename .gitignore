@@ -13,6 +13,7 @@ dynamics/
 # State files
 crawled_ids.json
 participated.json
+notified_winnings.json
 
 # Logs
 logs/

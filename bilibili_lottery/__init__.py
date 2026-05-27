@@ -13,6 +13,7 @@ from .participant import (
     participate_forward_lottery,
     participate_interactive_lottery,
 )
+from .notifier import check_lottery_winning, print_winning_notifications, LOTTERY_KEYWORDS
 from .utils import COMMENT_PRESETS
 
 __all__ = [
@@ -29,5 +30,8 @@ __all__ = [
     "like_dynamic",
     "participate_forward_lottery",
     "participate_interactive_lottery",
+    "check_lottery_winning",
+    "print_winning_notifications",
+    "LOTTERY_KEYWORDS",
     "COMMENT_PRESETS",
 ]

@@ -4,6 +4,7 @@
 
 import json
 import pathlib
+import urllib.request
 from datetime import datetime, timedelta
 
 COMMENT_PRESETS = [
@@ -115,3 +116,84 @@ def add_participated(dyn_id: str, path: pathlib.Path = pathlib.Path("participate
     ids = load_participated(path)
     ids.add(dyn_id)
     save_participated(ids, path)
+
+
+def load_notified_winnings(path: pathlib.Path = pathlib.Path("notified_winnings.json")) -> set:
+    """加载已推送的中奖通知 ID 集合"""
+    if not path.exists():
+        return set()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return set(data.get("ids", []))
+    except (json.JSONDecodeError, IOError):
+        return set()
+
+
+def save_notified_winnings(ids: set, path: pathlib.Path = pathlib.Path("notified_winnings.json")):
+    """保存已推送的中奖通知 ID 集合"""
+    data = {"ids": list(ids)}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def add_notified_winning(winning_id: str, path: pathlib.Path = pathlib.Path("notified_winnings.json")):
+    """添加已推送的中奖记录"""
+    ids = load_notified_winnings(path)
+    ids.add(winning_id)
+    save_notified_winnings(ids, path)
+
+
+def log_winning(notification: dict):
+    """
+    记录可能的中奖通知
+
+    Args:
+        notification: 包含 source, content, url, time, keyword 的字典
+    """
+    log_entry = {
+        "time": notification.get("time", datetime.now().isoformat()),
+        "action": "winning_check",
+        "source": notification.get("source", ""),
+        "content": notification.get("content", ""),
+        "url": notification.get("url", ""),
+        "keyword": notification.get("keyword", ""),
+    }
+
+    log_file = get_today_log_file()
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+
+def serverchan_push(sckey: str, title: str, content: str) -> bool:
+    """
+    通过 Server酱 推送消息
+
+    Args:
+        sckey: Server酱 SCKEY
+        title: 消息标题
+        content: 消息内容
+
+    Returns:
+        bool: 是否推送成功
+    """
+    if not sckey:
+        return False
+
+    try:
+        url = f"https://sc.ftqq.com/{sckey}.send"
+        data = urllib.parse.urlencode({
+            "text": title,
+            "desp": content,
+        }).encode("utf-8")
+
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read().decode("utf-8"))
+            return result.get("errno", 0) == 0 or result.get("code", 0) == 0
+
+    except Exception as e:
+        print(f"Server酱推送失败: {e}")
+        return False

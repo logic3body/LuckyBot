@@ -16,6 +16,8 @@ from bilibili_lottery import (
     parse_forward_requirements,
     participate_forward_lottery,
     participate_interactive_lottery,
+    check_lottery_winning,
+    print_winning_notifications,
     COMMENT_PRESETS,
     extract_dynamic_id,
 )
@@ -26,6 +28,8 @@ from bilibili_lottery.utils import (
     add_participated,
     clean_old_logs,
     log_action,
+    log_winning,
+    serverchan_push,
 )
 
 
@@ -279,13 +283,55 @@ async def cmd_interact():
         await asyncio.sleep(random.uniform(5, 10))
 
 
+async def cmd_check_lottery():
+    """检测可能的中奖通知"""
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    cred = Credential(**user_config.CREDENTIAL)
+    sckey = getattr(user_config, 'SERVERCHAN_SCKEY', '') or ''
+
+    print("正在检测通知中可能的中奖信息...")
+    results = await check_lottery_winning(cred)
+
+    # 打印结果
+    print_winning_notifications(results)
+
+    # 记录到日志并推送
+    for notification in results:
+        log_winning(notification)
+
+    # Server酱推送
+    if results and sckey:
+        title = f"检测到 {len(results)} 条可能的中奖通知"
+        content_lines = [f"检测到 {len(results)} 条可能的中奖通知:\n"]
+        for i, item in enumerate(results, 1):
+            content_lines.append(f"{i}. 来源: {item['source']}")
+            content_lines.append(f"   内容: {item['content'][:50]}...")
+            content_lines.append(f"   链接: {item['url']}")
+            content_lines.append(f"   时间: {item['time']}")
+            content_lines.append("")
+
+        content = "\n".join(content_lines)
+        print(f"\n正在推送 Server酱...")
+        success = serverchan_push(sckey, title, content)
+        if success:
+            print("推送成功!")
+        else:
+            print("推送失败，请检查 SCKEY")
+
+
 def main():
     if len(sys.argv) < 2:
         print("用法:")
-        print("  python fetch.py run          - 执行完整工作流（青龙面板调用）")
-        print("  python fetch.py fetch <uid>  - 仅获取动态")
-        print("  python fetch.py forward      - 处理转发抽奖")
-        print("  python fetch.py interact     - 处理互动抽奖")
+        print("  python fetch.py run            - 执行完整工作流")
+        print("  python fetch.py fetch <uid>      - 仅获取动态")
+        print("  python fetch.py forward          - 处理转发抽奖")
+        print("  python fetch.py interact         - 处理互动抽奖")
+        print("  python fetch.py check-lottery    - 检测是否中奖")
         return
 
     mode = sys.argv[1]
@@ -302,6 +348,8 @@ def main():
         asyncio.run(cmd_forward())
     elif mode == "interact":
         asyncio.run(cmd_interact())
+    elif mode == "check-lottery":
+        asyncio.run(cmd_check_lottery())
     else:
         print(f"未知模式: {mode}")
 
