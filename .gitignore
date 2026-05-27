@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Config (contains credentials)
+config.py
+
+# Dynamics data
+dynamics/
+
+# State files
+crawled_ids.json
+participated.json
+
+# Logs
+logs/
+
+# IDE
+.vscode/
+.idea/

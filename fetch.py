@@ -1,0 +1,310 @@
+"""
+CLI 入口
+"""
+
+import asyncio
+import importlib
+import json
+import random
+import sys
+
+from bilibili_api import Credential
+
+from bilibili_lottery import (
+    fetch_up_dynamics,
+    get_dynamic_content,
+    parse_forward_requirements,
+    participate_forward_lottery,
+    participate_interactive_lottery,
+    COMMENT_PRESETS,
+    extract_dynamic_id,
+)
+from bilibili_lottery.fetcher import LATEST_FILE, CLASSIFIED_DIR
+from bilibili_lottery.classifier import classify_dynamics, save_classified_prizes
+from bilibili_lottery.utils import (
+    load_participated,
+    add_participated,
+    clean_old_logs,
+    log_action,
+)
+
+
+async def cmd_fetch(uid: int):
+    """获取动态并分类"""
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    cred = Credential(**user_config.CREDENTIAL)
+
+    print(f"正在获取 UID {uid} 的动态...")
+    dynamics = await fetch_up_dynamics(uid, cred, limit=20)
+
+    if not dynamics:
+        print("没有新的动态")
+        return
+
+    # 分类
+    classified = classify_dynamics(dynamics)
+
+    # 保存 latest.json
+    import json
+    with open(LATEST_FILE, "w", encoding="utf-8") as f:
+        json.dump(dynamics, f, ensure_ascii=False, indent=2)
+
+    # 保存分类文件
+    for cat_name, items in classified.items():
+        if items:
+            file_path = CLASSIFIED_DIR / f"{cat_name}.json"
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(items, f, ensure_ascii=False, indent=2)
+
+    print(f"获取完成，共发现:")
+    for cat_name, items in classified.items():
+        if items:
+            print(f"  {cat_name}: {len(items)} 个")
+
+    return classified
+
+
+async def cmd_run():
+    """执行完整工作流"""
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    # 清理旧日志
+    clean_old_logs()
+
+    cred = Credential(**user_config.CREDENTIAL)
+    uid = user_config.TARGET_UID
+
+    # 获取动态
+    print(f"正在获取 UID {uid} 的动态...")
+    dynamics = await fetch_up_dynamics(uid, cred, limit=20)
+
+    if not dynamics:
+        print("没有新的动态，退出")
+        log_action("run", "", uid, "skipped", "no_new_dynamics")
+        return
+
+    print(f"获取到 {len(dynamics)} 条动态")
+
+    # 保存 latest.json
+    with open(LATEST_FILE, "w", encoding="utf-8") as f:
+        json.dump(dynamics, f, ensure_ascii=False, indent=2)
+
+    # 分类
+    classified = classify_dynamics(dynamics)
+    print(f"分类结果: 转发抽奖 {len(classified['forward'])} 个, 互动抽奖 {len(classified['interact'])} 个")
+
+    # 加载已参与记录
+    participated = load_participated()
+
+    # 处理转发抽奖
+    for item in classified["forward"]:
+        url = item.get("url", "")
+        dyn_id = extract_dynamic_id(url)
+
+        if not dyn_id:
+            print(f"无法提取动态 ID: {url}")
+            continue
+
+        if dyn_id in participated:
+            print(f"动态 {dyn_id} 已参与过，跳过")
+            continue
+
+        print(f"\n=== 处理转发抽奖: {item['name'][:30]}... ===")
+        print(f"URL: {url}")
+        print(f"动态 ID: {dyn_id}")
+
+        try:
+            content = await get_dynamic_content(dyn_id, cred)
+            print(f"动态内容: {content[:50]}...")
+
+            requirements = parse_forward_requirements(content)
+            print(f"解析要求: {requirements}")
+
+            random_comment = random.choice(COMMENT_PRESETS)
+            result = await participate_forward_lottery(
+                dyn_id, uid, requirements, cred,
+                comment_content=random_comment
+            )
+            print(f"结果: {result}")
+
+            if any(result.values()):
+                add_participated(dyn_id)
+                print(f"已添加参与记录: {dyn_id}")
+
+        except Exception as e:
+            print(f"处理失败: {e}")
+            log_action("process_forward", dyn_id, uid, "failed", str(e))
+
+        # 间隔
+        await asyncio.sleep(random.uniform(5, 10))
+
+    # 处理互动抽奖
+    for item in classified["interact"]:
+        url = item.get("url", "")
+        dyn_id = extract_dynamic_id(url)
+
+        if not dyn_id:
+            print(f"无法提取动态 ID: {url}")
+            continue
+
+        if dyn_id in participated:
+            print(f"动态 {dyn_id} 已参与过，跳过")
+            continue
+
+        print(f"\n=== 处理互动抽奖: {item['name'][:30]}... ===")
+        print(f"URL: {url}")
+        print(f"动态 ID: {dyn_id}")
+
+        try:
+            result = await participate_interactive_lottery(dyn_id, uid, cred)
+            print(f"结果: {result}")
+
+            if any(result.values()):
+                add_participated(dyn_id)
+                print(f"已添加参与记录: {dyn_id}")
+
+        except Exception as e:
+            print(f"处理失败: {e}")
+            log_action("process_interact", dyn_id, uid, "failed", str(e))
+
+        # 间隔
+        await asyncio.sleep(random.uniform(5, 10))
+
+    print("\n工作流执行完成")
+
+
+async def cmd_forward():
+    """处理转发抽奖（独立运行）"""
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    cred = Credential(**user_config.CREDENTIAL)
+    uid = user_config.TARGET_UID
+
+    forward_file = CLASSIFIED_DIR / "forward.json"
+    if not forward_file.exists():
+        print("请先运行: python fetch.py run")
+        return
+
+    import json
+    with open(forward_file, "r", encoding="utf-8") as f:
+        forward_items = json.load(f)
+
+    print(f"找到 {len(forward_items)} 个转发抽奖")
+
+    participated = load_participated()
+
+    for i, item in enumerate(forward_items, 1):
+        dyn_id = item.get("dyn_id", "")
+
+        if not dyn_id or dyn_id in participated:
+            continue
+
+        print(f"\n=== [转发抽奖] 处理 {i}/{len(forward_items)}: {item['name'][:30]}... ===")
+
+        try:
+            content = await get_dynamic_content(dyn_id, cred)
+            requirements = parse_forward_requirements(content)
+
+            random_comment = random.choice(COMMENT_PRESETS)
+            result = await participate_forward_lottery(
+                dyn_id, uid, requirements, cred,
+                comment_content=random_comment
+            )
+            print(f"结果: {result}")
+
+            if any(result.values()):
+                add_participated(dyn_id)
+
+        except Exception as e:
+            print(f"失败: {e}")
+
+        await asyncio.sleep(random.uniform(5, 10))
+
+
+async def cmd_interact():
+    """处理互动抽奖（独立运行）"""
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    cred = Credential(**user_config.CREDENTIAL)
+    uid = user_config.TARGET_UID
+
+    interact_file = CLASSIFIED_DIR / "interact.json"
+    if not interact_file.exists():
+        print("请先运行: python fetch.py run")
+        return
+
+    import json
+    with open(interact_file, "r", encoding="utf-8") as f:
+        interact_items = json.load(f)
+
+    print(f"找到 {len(interact_items)} 个互动抽奖")
+
+    participated = load_participated()
+
+    for i, item in enumerate(interact_items, 1):
+        dyn_id = item.get("dyn_id", "")
+
+        if not dyn_id or dyn_id in participated:
+            continue
+
+        print(f"\n=== [互动抽奖] 处理 {i}/{len(interact_items)}: {item['name'][:30]}... ===")
+
+        try:
+            result = await participate_interactive_lottery(dyn_id, uid, cred)
+            print(f"结果: {result}")
+
+            if any(result.values()):
+                add_participated(dyn_id)
+
+        except Exception as e:
+            print(f"失败: {e}")
+
+        await asyncio.sleep(random.uniform(5, 10))
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("用法:")
+        print("  python fetch.py run          - 执行完整工作流（青龙面板调用）")
+        print("  python fetch.py fetch <uid>  - 仅获取动态")
+        print("  python fetch.py forward      - 处理转发抽奖")
+        print("  python fetch.py interact     - 处理互动抽奖")
+        return
+
+    mode = sys.argv[1]
+
+    if mode == "run":
+        asyncio.run(cmd_run())
+    elif mode == "fetch":
+        if len(sys.argv) < 3:
+            print("请提供 UID: python fetch.py fetch <uid>")
+            return
+        uid = int(sys.argv[2])
+        asyncio.run(cmd_fetch(uid))
+    elif mode == "forward":
+        asyncio.run(cmd_forward())
+    elif mode == "interact":
+        asyncio.run(cmd_interact())
+    else:
+        print(f"未知模式: {mode}")
+
+
+if __name__ == "__main__":
+    main()
