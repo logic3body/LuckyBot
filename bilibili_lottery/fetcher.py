@@ -8,6 +8,8 @@ import pathlib
 import random
 
 from bilibili_api import Credential, user, dynamic
+from bilibili_api.utils.utils import get_api
+from bilibili_api.utils.network import Api
 
 from .utils import load_crawled_ids, save_crawled_ids
 
@@ -17,10 +19,45 @@ CLASSIFIED_DIR = DYNAMICS_DIR / "classified"
 CLASSIFIED_DIR.mkdir(exist_ok=True)
 LATEST_FILE = DYNAMICS_DIR / "latest.json"
 
+# 加载动态 API 定义
+DYNAMIC_API = get_api("dynamic")
+DYNAMICS_DIR.mkdir(exist_ok=True)
+CLASSIFIED_DIR = DYNAMICS_DIR / "classified"
+CLASSIFIED_DIR.mkdir(exist_ok=True)
+LATEST_FILE = DYNAMICS_DIR / "latest.json"
+
 
 def set_proxy(proxy: str = ""):
     """设置代理（预留接口）"""
     pass
+
+
+async def get_hot_dynamics(page: int = 1, retry: int = 3) -> list:
+    """
+    获取热门动态列表
+
+    Args:
+        page: 页码，默认 1
+        retry: 重试次数
+
+    Returns:
+        list: 动态列表
+    """
+    for attempt in range(retry):
+        try:
+            api = DYNAMIC_API["info"]["hot_dynamics"]
+            params = {"page": page}
+            result = await Api(**api).update_params(**params).result
+
+            items = result.get("items", [])
+            return items
+        except Exception as e:
+            if attempt < retry - 1:
+                wait_time = (attempt + 1) * 3 + random.uniform(1, 2)
+                print(f"获取热门动态失败，{wait_time:.1f}秒后重试... ({attempt + 1}/{retry})")
+                await asyncio.sleep(wait_time)
+            else:
+                raise
 
 
 async def fetch_up_dynamics(uid: int, credential: Credential, limit: int = 20, retry: int = 3):

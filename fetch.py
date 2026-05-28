@@ -13,6 +13,7 @@ from bilibili_api import Credential
 from bilibili_lottery import (
     fetch_up_dynamics,
     get_dynamic_content,
+    get_hot_dynamics,
     parse_forward_requirements,
     participate_forward_lottery,
     participate_interactive_lottery,
@@ -21,6 +22,7 @@ from bilibili_lottery import (
     COMMENT_PRESETS,
     extract_dynamic_id,
     check_cookie_valid,
+    random_interact_hot,
 )
 from bilibili_lottery.fetcher import LATEST_FILE, CLASSIFIED_DIR
 from bilibili_lottery.classifier import classify_dynamics, save_classified_prizes
@@ -360,6 +362,52 @@ async def cmd_check_cookie():
         print("未配置 SERVERCHAN_SCKEY，跳过推送")
 
 
+async def cmd_random_interact(count: int = 3):
+    """随机互动热门动态（模拟正常用户行为）"""
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    cred = Credential(**user_config.CREDENTIAL)
+
+    print(f"正在获取热门动态...")
+    hot_items = await get_hot_dynamics()
+
+    if not hot_items:
+        print("未获取到热门动态")
+        return
+
+    # 随机选择指定数量的动态
+    selected = random.sample(hot_items, min(count, len(hot_items)))
+    print(f"将随机互动 {len(selected)} 条热门动态\n")
+
+    for i, item in enumerate(selected, 1):
+        # 提取动态 ID
+        dyn_id = item.get("id_str", "") or item.get("id", "")
+        if not dyn_id:
+            continue
+
+        # 提取作者信息
+        modules = item.get("modules", {})
+        author = modules.get("module_author", {})
+        author_name = author.get("name", "未知")
+
+        print(f"[{i}/{len(selected)}] 动态 {dyn_id} (作者: {author_name})")
+
+        try:
+            result = await random_interact_hot(dyn_id, cred)
+            print(f"  结果: {result}")
+        except Exception as e:
+            print(f"  失败: {e}")
+
+        # 随机间隔，模拟真人
+        await asyncio.sleep(random.uniform(10, 30))
+
+    print(f"\n随机互动完成")
+
+
 def main():
     if len(sys.argv) < 2:
         print("用法:")
@@ -369,6 +417,7 @@ def main():
         print("  python fetch.py interact         - 处理互动抽奖")
         print("  python fetch.py check-lottery    - 检测是否中奖")
         print("  python fetch.py check-cookie     - 检查 Cookie 是否有效")
+        print("  python fetch.py random [N]       - 随机互动 N 条热门动态（默认 3）")
         return
 
     mode = sys.argv[1]
@@ -389,6 +438,9 @@ def main():
         asyncio.run(cmd_check_lottery())
     elif mode == "check-cookie":
         asyncio.run(cmd_check_cookie())
+    elif mode == "random":
+        count = int(sys.argv[2]) if len(sys.argv) > 2 else 3
+        asyncio.run(cmd_random_interact(count))
     else:
         print(f"未知模式: {mode}")
 

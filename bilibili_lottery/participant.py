@@ -161,3 +161,76 @@ async def participate_interactive_lottery(dynamic_id: str, uid: int, credential:
     """
     requirements = {"follow": True, "repost": True, "comment": False, "like": False}
     return await participate_forward_lottery(dynamic_id, uid, requirements, credential)
+
+
+# 普通评论模板（非抽奖相关）
+NORMAL_COMMENTS = [
+    "好看！",
+    "不错不错",
+    "支持一下",
+    "有意思",
+    "厉害了",
+    "哈哈",
+    "学到了",
+    "感谢分享",
+    "太棒了",
+    "666",
+    "有意思",
+    "涨知识了",
+    "好活",
+    "顶",
+    "赞",
+]
+
+
+async def random_interact_hot(dynamic_id: str, credential: Credential, actions: list = None):
+    """
+    随机互动热门动态（模拟正常用户行为）
+
+    Args:
+        dynamic_id: 动态 ID
+        credential: 登录凭证
+        actions: 可选的操作列表，默认 ["like", "comment"]
+
+    Returns:
+        dict: 操作结果
+    """
+    if actions is None:
+        actions = ["like", "comment"]
+
+    results = {}
+
+    # 随机决定执行哪些操作
+    selected_actions = random.sample(actions, min(random.randint(1, 2), len(actions)))
+
+    if "like" in selected_actions:
+        try:
+            print(f"  点赞动态 {dynamic_id}...")
+            await like_dynamic(dynamic_id, credential)
+            results["like"] = True
+            await asyncio.sleep(random.uniform(1, 3))
+        except Exception as e:
+            print(f"  点赞失败: {e}")
+            results["like"] = False
+
+    if "comment" in selected_actions:
+        try:
+            comment = random.choice(NORMAL_COMMENTS)
+            print(f"  评论动态 {dynamic_id}: {comment}")
+            await comment_dynamic(dynamic_id, comment, credential)
+            results["comment"] = True
+            await asyncio.sleep(random.uniform(1, 3))
+        except Exception as e:
+            print(f"  评论失败: {e}")
+            results["comment"] = False
+
+    if "repost" in selected_actions:
+        try:
+            print(f"  转发动态 {dynamic_id}...")
+            await repost_dynamic(dynamic_id, credential)
+            results["repost"] = True
+        except Exception as e:
+            print(f"  转发失败: {e}")
+            results["repost"] = False
+
+    return results
