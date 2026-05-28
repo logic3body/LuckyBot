@@ -32,11 +32,12 @@ def set_proxy(proxy: str = ""):
     pass
 
 
-async def get_hot_dynamics(page: int = 1, retry: int = 3) -> list:
+async def get_hot_dynamics(credential: Credential = None, page: int = 1, retry: int = 3) -> list:
     """
     获取热门动态列表
 
     Args:
+        credential: 登录凭证（可选）
         page: 页码，默认 1
         retry: 重试次数
 
@@ -46,8 +47,11 @@ async def get_hot_dynamics(page: int = 1, retry: int = 3) -> list:
     for attempt in range(retry):
         try:
             api = DYNAMIC_API["info"]["hot_dynamics"]
-            params = {"page": page}
-            result = await Api(**api).update_params(**params).result
+            params = {
+                "page": page,
+                "features": "itemOpusStyle",
+            }
+            result = await Api(**api, credential=credential).update_params(**params).result
 
             items = result.get("items", [])
             return items

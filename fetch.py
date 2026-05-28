@@ -373,7 +373,7 @@ async def cmd_random_interact(count: int = 3):
     cred = Credential(**user_config.CREDENTIAL)
 
     print(f"正在获取热门动态...")
-    hot_items = await get_hot_dynamics()
+    hot_items = await get_hot_dynamics(cred)
 
     if not hot_items:
         print("未获取到热门动态")
