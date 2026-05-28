@@ -97,11 +97,19 @@ async def get_dynamic_content(dynamic_id: str, credential: Credential, retry: in
 
             if isinstance(modules, dict):
                 mod_dyn = modules.get("module_dynamic", {})
-                desc = mod_dyn.get("desc", {})
-                rich_nodes = desc.get("rich_text_nodes", [])
-                for node in rich_nodes:
-                    text = node.get("text", "")
-                    texts.append(text)
+                desc = mod_dyn.get("desc")
+                if desc is not None:
+                    rich_nodes = desc.get("rich_text_nodes", [])
+                    for node in rich_nodes:
+                        text = node.get("text", "")
+                        texts.append(text)
+                # 尝试从 major.opus 获取内容
+                major = mod_dyn.get("major")
+                if major and isinstance(major, dict) and "opus" in major:
+                    summary = major["opus"].get("summary", {})
+                    text = summary.get("text", "")
+                    if text:
+                        texts.append(text)
                 return "".join(texts)
 
             if isinstance(modules, list):
