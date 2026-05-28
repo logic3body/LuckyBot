@@ -50,6 +50,10 @@ async def fetch_up_dynamics(uid: int, credential: Credential, limit: int = 20, r
                         opus = d.turn_to_opus()
                         opus_info = await opus.get_info()
 
+                        if opus_info is None:
+                            print(f"动态 {dyn_id} 返回空数据，跳过")
+                            continue
+
                         new_dynamics.append(opus_info)
                         new_ids.append(dyn_id)
 
@@ -80,6 +84,9 @@ async def get_dynamic_content(dynamic_id: str, credential: Credential, retry: in
         try:
             d = dynamic.Dynamic(dynamic_id=dynamic_id, credential=credential)
             info = await d.get_info()
+
+            if not isinstance(info, dict):
+                raise ValueError(f"Unexpected info type: {type(info)}")
 
             if "item" in info:
                 modules = info.get("item", {}).get("modules", {})
