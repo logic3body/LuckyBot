@@ -14,6 +14,19 @@ from .utils import serverchan_push, log_winning, load_notified_winnings, add_not
 LOTTERY_KEYWORDS = ["恭喜", "中奖", "获奖", "抽中"]
 
 
+async def check_cookie_valid(credential: Credential) -> bool:
+    """
+    检查 Cookie 是否有效
+
+    Args:
+        credential: 登录凭证
+
+    Returns:
+        bool: Cookie 是否有效
+    """
+    return await credential.check_valid()
+
+
 async def check_lottery_winning(credential: Credential, keywords: list = None) -> list:
     """
     检查 @我 通知列表，返回可能中奖的通知（仅返回未推送过的）

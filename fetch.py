@@ -20,6 +20,7 @@ from bilibili_lottery import (
     print_winning_notifications,
     COMMENT_PRESETS,
     extract_dynamic_id,
+    check_cookie_valid,
 )
 from bilibili_lottery.fetcher import LATEST_FILE, CLASSIFIED_DIR
 from bilibili_lottery.classifier import classify_dynamics, save_classified_prizes
@@ -324,6 +325,41 @@ async def cmd_check_lottery():
             print("推送失败，请检查 SCKEY")
 
 
+async def cmd_check_cookie():
+    """检查 Cookie 是否有效，失效时推送通知"""
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    cred = Credential(**user_config.CREDENTIAL)
+    sckey = getattr(user_config, 'SERVERCHAN_SCKEY', '') or ''
+
+    print("正在检查 Cookie 有效性...")
+    is_valid = await check_cookie_valid(cred)
+
+    if is_valid:
+        print("Cookie 有效")
+        return
+
+    print("Cookie 已失效!")
+
+    # Server酱推送
+    if sckey:
+        title = "B站 Cookie 已失效"
+        content = "请尽快更新 config.py 中的 CREDENTIAL 配置\n\n包括: sessdata, bili_jct, buvid3\n\n获取方式: 登录 bilibili.com → F12 → Application → Cookies"
+
+        print("正在推送 Server酱...")
+        success = serverchan_push(sckey, title, content)
+        if success:
+            print("推送成功!")
+        else:
+            print("推送失败，请检查 SCKEY")
+    else:
+        print("未配置 SERVERCHAN_SCKEY，跳过推送")
+
+
 def main():
     if len(sys.argv) < 2:
         print("用法:")
@@ -332,6 +368,7 @@ def main():
         print("  python fetch.py forward          - 处理转发抽奖")
         print("  python fetch.py interact         - 处理互动抽奖")
         print("  python fetch.py check-lottery    - 检测是否中奖")
+        print("  python fetch.py check-cookie     - 检查 Cookie 是否有效")
         return
 
     mode = sys.argv[1]
@@ -350,6 +387,8 @@ def main():
         asyncio.run(cmd_interact())
     elif mode == "check-lottery":
         asyncio.run(cmd_check_lottery())
+    elif mode == "check-cookie":
+        asyncio.run(cmd_check_cookie())
     else:
         print(f"未知模式: {mode}")
 

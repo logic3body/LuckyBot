@@ -13,7 +13,7 @@ from .participant import (
     participate_forward_lottery,
     participate_interactive_lottery,
 )
-from .notifier import check_lottery_winning, print_winning_notifications, LOTTERY_KEYWORDS
+from .notifier import check_lottery_winning, print_winning_notifications, LOTTERY_KEYWORDS, check_cookie_valid
 from .utils import COMMENT_PRESETS
 
 __all__ = [
@@ -33,5 +33,6 @@ __all__ = [
     "check_lottery_winning",
     "print_winning_notifications",
     "LOTTERY_KEYWORDS",
+    "check_cookie_valid",
     "COMMENT_PRESETS",
 ]
