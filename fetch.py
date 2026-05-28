@@ -13,6 +13,7 @@ from bilibili_api import Credential
 from bilibili_lottery import (
     fetch_up_dynamics,
     get_dynamic_content,
+    get_dynamic_author_uid,
     get_hot_dynamics,
     parse_forward_requirements,
     participate_forward_lottery,
@@ -115,7 +116,6 @@ async def cmd_run():
     for item in classified["forward"]:
         url = item.get("url", "")
         dyn_id = extract_dynamic_id(url)
-        author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id:
             print(f"无法提取动态 ID: {url}")
@@ -130,8 +130,11 @@ async def cmd_run():
         print(f"动态 ID: {dyn_id}")
 
         try:
+            # 获取动态内容和作者 UID
             content = await get_dynamic_content(dyn_id, cred)
+            author_uid = await get_dynamic_author_uid(dyn_id, cred)
             print(f"动态内容: {content[:50]}...")
+            print(f"作者 UID: {author_uid}")
 
             requirements = parse_forward_requirements(content)
             print(f"解析要求: {requirements}")
@@ -149,7 +152,7 @@ async def cmd_run():
 
         except Exception as e:
             print(f"处理失败: {e}")
-            log_action("process_forward", dyn_id, author_uid, "failed", str(e))
+            log_action("process_forward", dyn_id, 0, "failed", str(e))
 
         # 间隔
         await asyncio.sleep(random.uniform(5, 10))
@@ -158,7 +161,34 @@ async def cmd_run():
     for item in classified["interact"]:
         url = item.get("url", "")
         dyn_id = extract_dynamic_id(url)
-        author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
+
+        if not dyn_id:
+            print(f"无法提取动态 ID: {url}")
+            continue
+
+        if dyn_id in participated:
+            print(f"动态 {dyn_id} 已参与过，跳过")
+            continue
+
+        print(f"\n=== 处理互动抽奖: {item['name'][:30]}... ===")
+        print(f"URL: {url}")
+        print(f"动态 ID: {dyn_id}")
+
+        try:
+            # 获取作者 UID
+            author_uid = await get_dynamic_author_uid(dyn_id, cred)
+            print(f"作者 UID: {author_uid}")
+
+            result = await participate_interactive_lottery(dyn_id, author_uid, cred)
+            print(f"结果: {result}")
+
+            if any(result.values()):
+                add_participated(dyn_id)
+                print(f"已添加参与记录: {dyn_id}")
+
+        except Exception as e:
+            print(f"处理失败: {e}")
+            log_action("process_interact", dyn_id, 0, "failed", str(e))
 
         if not dyn_id:
             print(f"无法提取动态 ID: {url}")
@@ -216,7 +246,6 @@ async def cmd_forward():
     for i, item in enumerate(forward_items, 1):
         url = item.get("url", "")
         dyn_id = extract_dynamic_id(url) or item.get("dyn_id", "")
-        author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id or dyn_id in participated:
             continue
@@ -225,6 +254,7 @@ async def cmd_forward():
 
         try:
             content = await get_dynamic_content(dyn_id, cred)
+            author_uid = await get_dynamic_author_uid(dyn_id, cred)
             requirements = parse_forward_requirements(content)
 
             random_comment = random.choice(COMMENT_PRESETS)
@@ -269,7 +299,6 @@ async def cmd_interact():
     for i, item in enumerate(interact_items, 1):
         url = item.get("url", "")
         dyn_id = extract_dynamic_id(url) or item.get("dyn_id", "")
-        author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id or dyn_id in participated:
             continue
@@ -277,6 +306,9 @@ async def cmd_interact():
         print(f"\n=== [互动抽奖] 处理 {i}/{len(interact_items)}: {item['name'][:30]}... ===")
 
         try:
+            author_uid = await get_dynamic_author_uid(dyn_id, cred)
+            print(f"作者 UID: {author_uid}")
+
             result = await participate_interactive_lottery(dyn_id, author_uid, cred)
             print(f"结果: {result}")
 

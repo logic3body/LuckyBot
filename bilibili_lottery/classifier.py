@@ -144,11 +144,23 @@ def extract_opus_content(opus_info: dict) -> str:
 
 def extract_author_uid(opus_info: dict) -> int:
     """从 opus info 中提取作者 UID"""
-    modules = opus_info.get("item", {}).get("modules", [])
-    for mod in modules:
-        if mod.get("module_type") == "MODULE_TYPE_AUTHOR":
-            author = mod.get("module_author", {})
-            return author.get("user", {}).get("mid", 0) or author.get("mid", 0)
+    modules = opus_info.get("item", {}).get("modules", {})
+
+    # modules 是 dict 格式（新 API）
+    if isinstance(modules, dict):
+        author = modules.get("module_author", {})
+        mid = author.get("mid", 0)
+        if mid:
+            return mid
+        return author.get("user", {}).get("mid", 0)
+
+    # modules 是 list 格式（旧 API）
+    if isinstance(modules, list):
+        for mod in modules:
+            if mod.get("module_type") == "MODULE_TYPE_AUTHOR":
+                author = mod.get("module_author", {})
+                return author.get("mid", 0) or author.get("user", {}).get("mid", 0)
+
     return 0
 
 

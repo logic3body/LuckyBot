@@ -2,7 +2,7 @@
 bilibili-lottery - 哔哩哔哩抽奖参与工具
 """
 
-from .fetcher import fetch_up_dynamics, get_dynamic_content, get_hot_dynamics
+from .fetcher import fetch_up_dynamics, get_dynamic_content, get_dynamic_author_uid, get_hot_dynamics
 from .classifier import parse_classified_prizes, save_classified_prizes, classify_dynamics
 from .parser import extract_dynamic_id, parse_forward_requirements
 from .participant import (
@@ -20,6 +20,7 @@ from .utils import COMMENT_PRESETS
 __all__ = [
     "fetch_up_dynamics",
     "get_dynamic_content",
+    "get_dynamic_author_uid",
     "get_hot_dynamics",
     "parse_classified_prizes",
     "save_classified_prizes",

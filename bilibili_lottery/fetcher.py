@@ -172,3 +172,44 @@ async def get_dynamic_content(dynamic_id: str, credential: Credential, retry: in
                 await asyncio.sleep(wait_time)
             else:
                 raise
+
+
+async def get_dynamic_author_uid(dynamic_id: str, credential: Credential, retry: int = 3) -> int:
+    """获取动态的作者 UID"""
+    for attempt in range(retry):
+        try:
+            d = dynamic.Dynamic(dynamic_id=dynamic_id, credential=credential)
+            info = await d.get_info()
+
+            if not isinstance(info, dict):
+                raise ValueError(f"Unexpected info type: {type(info)}")
+
+            if "item" in info:
+                modules = info.get("item", {}).get("modules", {})
+            else:
+                modules = info.get("modules", {})
+
+            # modules 是 dict 格式
+            if isinstance(modules, dict):
+                author = modules.get("module_author", {})
+                mid = author.get("mid", 0)
+                if mid:
+                    return mid
+                return author.get("user", {}).get("mid", 0)
+
+            # modules 是 list 格式
+            if isinstance(modules, list):
+                for mod in modules:
+                    if "module_author" in mod:
+                        author = mod["module_author"]
+                        return author.get("mid", 0) or author.get("user", {}).get("mid", 0)
+
+            return 0
+
+        except Exception as e:
+            if attempt < retry - 1:
+                wait_time = (attempt + 1) * 3 + random.uniform(1, 2)
+                print(f"获取动态作者失败，{wait_time:.1f}秒后重试... ({attempt + 1}/{retry})")
+                await asyncio.sleep(wait_time)
+            else:
+                raise
