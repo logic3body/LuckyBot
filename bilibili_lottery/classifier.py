@@ -156,6 +156,16 @@ def extract_opus_content(opus_info: dict) -> str:
     return "".join(texts)
 
 
+def extract_author_uid(opus_info: dict) -> int:
+    """从 opus info 中提取作者 UID"""
+    modules = opus_info.get("item", {}).get("modules", [])
+    for mod in modules:
+        if mod.get("module_type") == "MODULE_TYPE_AUTHOR":
+            author = mod.get("module_author", {})
+            return author.get("user", {}).get("mid", 0) or author.get("mid", 0)
+    return 0
+
+
 def classify_dynamics(dynamics: list) -> dict:
     """从动态列表中分类抽奖类型，提取每个分类下的具体抽奖链接
 
@@ -178,11 +188,17 @@ def classify_dynamics(dynamics: list) -> dict:
     }
 
     for opus_info in dynamics:
+        # 提取作者 UID
+        author_uid = extract_author_uid(opus_info)
+
         categories = parse_classified_prizes(opus_info)
         for cat_name, items in categories.items():
             if items:
                 cat_key = cat_map.get(cat_name)
                 if cat_key:
+                    # 为每个项目添加作者 UID
+                    for item in items:
+                        item["author_uid"] = author_uid
                     result[cat_key].extend(items)
 
     return result

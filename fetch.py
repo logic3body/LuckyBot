@@ -116,6 +116,7 @@ async def cmd_run():
     for item in classified["forward"]:
         url = item.get("url", "")
         dyn_id = extract_dynamic_id(url)
+        author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id:
             print(f"无法提取动态 ID: {url}")
@@ -138,7 +139,7 @@ async def cmd_run():
 
             random_comment = random.choice(COMMENT_PRESETS)
             result = await participate_forward_lottery(
-                dyn_id, uid, requirements, cred,
+                dyn_id, author_uid, requirements, cred,
                 comment_content=random_comment
             )
             print(f"结果: {result}")
@@ -149,7 +150,7 @@ async def cmd_run():
 
         except Exception as e:
             print(f"处理失败: {e}")
-            log_action("process_forward", dyn_id, uid, "failed", str(e))
+            log_action("process_forward", dyn_id, author_uid, "failed", str(e))
 
         # 间隔
         await asyncio.sleep(random.uniform(5, 10))
@@ -158,6 +159,7 @@ async def cmd_run():
     for item in classified["interact"]:
         url = item.get("url", "")
         dyn_id = extract_dynamic_id(url)
+        author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id:
             print(f"无法提取动态 ID: {url}")
@@ -172,7 +174,7 @@ async def cmd_run():
         print(f"动态 ID: {dyn_id}")
 
         try:
-            result = await participate_interactive_lottery(dyn_id, uid, cred)
+            result = await participate_interactive_lottery(dyn_id, author_uid, cred)
             print(f"结果: {result}")
 
             if any(result.values()):
@@ -181,7 +183,7 @@ async def cmd_run():
 
         except Exception as e:
             print(f"处理失败: {e}")
-            log_action("process_interact", dyn_id, uid, "failed", str(e))
+            log_action("process_interact", dyn_id, author_uid, "failed", str(e))
 
         # 间隔
         await asyncio.sleep(random.uniform(5, 10))
@@ -215,6 +217,7 @@ async def cmd_forward():
 
     for i, item in enumerate(forward_items, 1):
         dyn_id = item.get("dyn_id", "")
+        author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id or dyn_id in participated:
             continue
@@ -227,7 +230,7 @@ async def cmd_forward():
 
             random_comment = random.choice(COMMENT_PRESETS)
             result = await participate_forward_lottery(
-                dyn_id, uid, requirements, cred,
+                dyn_id, author_uid, requirements, cred,
                 comment_content=random_comment
             )
             print(f"结果: {result}")
@@ -267,6 +270,7 @@ async def cmd_interact():
 
     for i, item in enumerate(interact_items, 1):
         dyn_id = item.get("dyn_id", "")
+        author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id or dyn_id in participated:
             continue
@@ -274,7 +278,7 @@ async def cmd_interact():
         print(f"\n=== [互动抽奖] 处理 {i}/{len(interact_items)}: {item['name'][:30]}... ===")
 
         try:
-            result = await participate_interactive_lottery(dyn_id, uid, cred)
+            result = await participate_interactive_lottery(dyn_id, author_uid, cred)
             print(f"结果: {result}")
 
             if any(result.values()):
