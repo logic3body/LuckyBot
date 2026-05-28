@@ -59,20 +59,6 @@ def get_card_id(card_data: dict) -> str:
     return str(card_data.get("all_dyn_id") or card_data.get("dynamic_id") or "")
 
 
-def is_forward_lottery(card_data: dict) -> bool:
-    """判断是否是转发抽奖"""
-    content = extract_card_content(card_data)
-    keywords = ["转发", "抽奖", "转发抽奖"]
-    return any(kw in content for kw in keywords)
-
-
-def is_interactive_lottery(card_data: dict) -> bool:
-    """判断是否是互动抽奖"""
-    content = extract_card_content(card_data)
-    keywords = ["互动抽奖", "一键参与", "参与抽奖"]
-    return any(kw in content for kw in keywords)
-
-
 def parse_classified_prizes(opus_info: dict) -> dict:
     """解析 opus 信息，分类提取奖品（用于旧版 opus 格式）"""
     categories = {

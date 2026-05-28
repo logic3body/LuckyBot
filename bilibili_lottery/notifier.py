@@ -115,10 +115,9 @@ async def main():
         return
 
     cred = Credential(**user_config.CREDENTIAL)
-    uid = getattr(user_config, 'TARGET_UID', None)
 
     print("正在检测通知...")
-    results = await check_lottery_winning(cred, uid=uid)
+    results = await check_lottery_winning(cred)
     print_winning_notifications(results)
 
 

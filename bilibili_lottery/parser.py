@@ -30,20 +30,20 @@ def parse_forward_requirements(text: str) -> dict:
         "like": False,
     }
 
-    # 检测关注 (关注/关)
-    if "关注" in text or "关" in text:
+    # 检测关注
+    if "关注" in text:
         requirements["follow"] = True
 
-    # 检测转发 (转发/转)
-    if "转发" in text or "转" in text:
+    # 检测转发
+    if "转发" in text:
         requirements["repost"] = True
 
-    # 检测评论 (评论/评)
-    if "评论" in text or "评" in text:
+    # 检测评论
+    if "评论" in text:
         requirements["comment"] = True
 
-    # 检测点赞 (点赞/赞)
-    if "点赞" in text or "赞" in text:
+    # 检测点赞
+    if "点赞" in text:
         requirements["like"] = True
 
     return requirements

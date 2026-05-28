@@ -57,7 +57,6 @@ async def cmd_fetch(uid: int):
     classified = classify_dynamics(dynamics)
 
     # 保存 latest.json
-    import json
     with open(LATEST_FILE, "w", encoding="utf-8") as f:
         json.dump(dynamics, f, ensure_ascii=False, indent=2)
 
@@ -207,7 +206,6 @@ async def cmd_forward():
         print("请先运行: python fetch.py run")
         return
 
-    import json
     with open(forward_file, "r", encoding="utf-8") as f:
         forward_items = json.load(f)
 
@@ -216,7 +214,8 @@ async def cmd_forward():
     participated = load_participated()
 
     for i, item in enumerate(forward_items, 1):
-        dyn_id = item.get("dyn_id", "")
+        url = item.get("url", "")
+        dyn_id = extract_dynamic_id(url) or item.get("dyn_id", "")
         author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id or dyn_id in participated:
@@ -260,7 +259,6 @@ async def cmd_interact():
         print("请先运行: python fetch.py run")
         return
 
-    import json
     with open(interact_file, "r", encoding="utf-8") as f:
         interact_items = json.load(f)
 
@@ -269,7 +267,8 @@ async def cmd_interact():
     participated = load_participated()
 
     for i, item in enumerate(interact_items, 1):
-        dyn_id = item.get("dyn_id", "")
+        url = item.get("url", "")
+        dyn_id = extract_dynamic_id(url) or item.get("dyn_id", "")
         author_uid = item.get("author_uid", uid)  # 使用动态作者 UID，回退到 TARGET_UID
 
         if not dyn_id or dyn_id in participated:

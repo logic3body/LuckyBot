@@ -4,6 +4,7 @@
 
 import json
 import pathlib
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
 
@@ -72,7 +73,7 @@ def log_action(action: str, dyn_id: str, uid: int = None, result: str = "success
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
-def load_crawled_ids(path: pathlib.Path = pathlib.Path("crawled_ids.json"), max_count: int = 10) -> list:
+def load_crawled_ids(path: pathlib.Path = pathlib.Path("crawled_ids.json"), max_count: int = 100) -> list:
     """加载已爬取动态 ID 列表"""
     if not path.exists():
         return []
@@ -84,7 +85,7 @@ def load_crawled_ids(path: pathlib.Path = pathlib.Path("crawled_ids.json"), max_
         return []
 
 
-def save_crawled_ids(ids: list, path: pathlib.Path = pathlib.Path("crawled_ids.json"), max_count: int = 10):
+def save_crawled_ids(ids: list, path: pathlib.Path = pathlib.Path("crawled_ids.json"), max_count: int = 100):
     """保存已爬取动态 ID 列表（保留最近 max_count 条）"""
     ids = ids[-max_count:]
     data = {"ids": ids}

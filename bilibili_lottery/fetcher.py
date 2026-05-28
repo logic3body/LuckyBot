@@ -21,10 +21,6 @@ LATEST_FILE = DYNAMICS_DIR / "latest.json"
 
 # 加载动态 API 定义
 DYNAMIC_API = get_api("dynamic")
-DYNAMICS_DIR.mkdir(exist_ok=True)
-CLASSIFIED_DIR = DYNAMICS_DIR / "classified"
-CLASSIFIED_DIR.mkdir(exist_ok=True)
-LATEST_FILE = DYNAMICS_DIR / "latest.json"
 
 
 def set_proxy(proxy: str = ""):
