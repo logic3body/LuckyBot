@@ -15,6 +15,8 @@ from bilibili_lottery import (
     get_dynamic_content,
     get_dynamic_author_uid,
     get_hot_dynamics,
+    fetch_own_dynamics,
+    delete_dynamic,
     parse_forward_requirements,
     participate_forward_lottery,
     participate_interactive_lottery,
@@ -189,30 +191,6 @@ async def cmd_run():
         except Exception as e:
             print(f"处理失败: {e}")
             log_action("process_interact", dyn_id, 0, "failed", str(e))
-
-        if not dyn_id:
-            print(f"无法提取动态 ID: {url}")
-            continue
-
-        if dyn_id in participated:
-            print(f"动态 {dyn_id} 已参与过，跳过")
-            continue
-
-        print(f"\n=== 处理互动抽奖: {item['name'][:30]}... ===")
-        print(f"URL: {url}")
-        print(f"动态 ID: {dyn_id}")
-
-        try:
-            result = await participate_interactive_lottery(dyn_id, author_uid, cred)
-            print(f"结果: {result}")
-
-            if any(result.values()):
-                add_participated(dyn_id)
-                print(f"已添加参与记录: {dyn_id}")
-
-        except Exception as e:
-            print(f"处理失败: {e}")
-            log_action("process_interact", dyn_id, author_uid, "failed", str(e))
 
         # 间隔
         await asyncio.sleep(random.uniform(5, 10))
@@ -443,16 +421,88 @@ async def cmd_random_interact(count: int = 3):
     print(f"\n随机互动完成")
 
 
+async def cmd_clean(days: int = 30, confirm: bool = False):
+    """批量清理旧动态"""
+    from datetime import datetime
+    from bilibili_api import user as user_module
+
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    cred = Credential(**user_config.CREDENTIAL)
+
+    # 获取自己的 UID（而非 TARGET_UID）
+    self_info = await user_module.get_self_info(cred)
+    uid = self_info["mid"]
+    nickname = self_info.get("name", "")
+    print(f"当前账号: {nickname} (UID: {uid})")
+
+    print(f"正在获取 {days} 天前的旧动态...")
+    old_dynamics = await fetch_own_dynamics(uid, cred, days=days)
+
+    if not old_dynamics:
+        print(f"没有找到 {days} 天前的动态")
+        return
+
+    # 按时间排序（旧的在前）
+    old_dynamics.sort(key=lambda x: x["timestamp"])
+
+    print(f"\n找到 {len(old_dynamics)} 条 {days} 天前的动态:\n")
+    print(f"{'序号':<6}{'发布时间':<22}{'动态 ID':<20}{'内容摘要'}")
+    print("-" * 80)
+    for i, d in enumerate(old_dynamics, 1):
+        pub_time = datetime.fromtimestamp(d["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+        summary = d["content_summary"][:30] if d["content_summary"] else "(无文字内容)"
+        print(f"{i:<6}{pub_time:<22}{d['dynamic_id']:<20}{summary}")
+
+    # 确认删除
+    if not confirm:
+        print(f"\n共 {len(old_dynamics)} 条动态将被删除。")
+        answer = input("确认删除？(y/N): ").strip().lower()
+        if answer != "y":
+            print("已取消")
+            return
+
+    # 执行删除
+    print(f"\n开始删除...")
+    success_count = 0
+    fail_count = 0
+
+    for i, d in enumerate(old_dynamics, 1):
+        dyn_id = d["dynamic_id"]
+        print(f"[{i}/{len(old_dynamics)}] 删除动态 {dyn_id}...", end=" ")
+        try:
+            result = await delete_dynamic(dyn_id, cred)
+            if result:
+                print("成功")
+                success_count += 1
+            else:
+                print("失败")
+                fail_count += 1
+        except Exception as e:
+            print(f"失败: {e}")
+            fail_count += 1
+
+        # 随机延迟，避免触发风控
+        await asyncio.sleep(random.uniform(2, 5))
+
+    print(f"\n清理完成: 成功 {success_count}, 失败 {fail_count}, 共 {len(old_dynamics)} 条")
+
+
 def main():
     if len(sys.argv) < 2:
         print("用法:")
-        print("  python fetch.py run            - 执行完整工作流")
+        print("  python fetch.py run              - 执行完整工作流")
         print("  python fetch.py fetch <uid>      - 仅获取动态")
         print("  python fetch.py forward          - 处理转发抽奖")
         print("  python fetch.py interact         - 处理互动抽奖")
         print("  python fetch.py check-lottery    - 检测是否中奖")
         print("  python fetch.py check-cookie     - 检查 Cookie 是否有效")
         print("  python fetch.py random [N]       - 随机互动 N 条热门动态（默认 3）")
+        print("  python fetch.py clean [--days N] [--confirm] - 清理 N 天前的旧动态（默认 30）")
         return
 
     mode = sys.argv[1]
@@ -476,6 +526,21 @@ def main():
     elif mode == "random":
         count = int(sys.argv[2]) if len(sys.argv) > 2 else 3
         asyncio.run(cmd_random_interact(count))
+    elif mode == "clean":
+        days = 30
+        confirm = False
+        args = sys.argv[2:]
+        i = 0
+        while i < len(args):
+            if args[i] == "--days" and i + 1 < len(args):
+                days = int(args[i + 1])
+                i += 2
+            elif args[i] == "--confirm":
+                confirm = True
+                i += 1
+            else:
+                i += 1
+        asyncio.run(cmd_clean(days=days, confirm=confirm))
     else:
         print(f"未知模式: {mode}")
 

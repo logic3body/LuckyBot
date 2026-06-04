@@ -2,7 +2,7 @@
 bilibili-lottery - 哔哩哔哩抽奖参与工具
 """
 
-from .fetcher import fetch_up_dynamics, get_dynamic_content, get_dynamic_author_uid, get_hot_dynamics
+from .fetcher import fetch_up_dynamics, get_dynamic_content, get_dynamic_author_uid, get_hot_dynamics, fetch_own_dynamics
 from .classifier import parse_classified_prizes, save_classified_prizes, classify_dynamics
 from .parser import extract_dynamic_id, parse_forward_requirements
 from .participant import (
@@ -13,6 +13,7 @@ from .participant import (
     participate_forward_lottery,
     participate_interactive_lottery,
     random_interact_hot,
+    delete_dynamic,
 )
 from .notifier import check_lottery_winning, print_winning_notifications, LOTTERY_KEYWORDS, check_cookie_valid
 from .utils import COMMENT_PRESETS
@@ -22,6 +23,7 @@ __all__ = [
     "get_dynamic_content",
     "get_dynamic_author_uid",
     "get_hot_dynamics",
+    "fetch_own_dynamics",
     "parse_classified_prizes",
     "save_classified_prizes",
     "classify_dynamics",
@@ -34,6 +36,7 @@ __all__ = [
     "participate_forward_lottery",
     "participate_interactive_lottery",
     "random_interact_hot",
+    "delete_dynamic",
     "check_lottery_winning",
     "print_winning_notifications",
     "LOTTERY_KEYWORDS",

@@ -174,6 +174,94 @@ async def get_dynamic_content(dynamic_id: str, credential: Credential, retry: in
                 raise
 
 
+async def fetch_own_dynamics(uid: int, credential: Credential, days: int = 30, retry: int = 3) -> list:
+    """
+    获取自己账号中指定天数前的旧动态
+
+    Args:
+        uid: 自己的 UID
+        credential: 登录凭证
+        days: 删除 N 天前的动态，默认 30
+        retry: 重试次数
+
+    Returns:
+        list[dict]: 旧动态列表，每项包含 dynamic_id, timestamp, content_summary
+    """
+    from datetime import datetime, timedelta
+
+    cutoff_ts = int((datetime.now() - timedelta(days=days)).timestamp())
+    old_dynamics = []
+    offset = None
+    pn = 1
+
+    for attempt in range(retry):
+        try:
+            while True:
+                result = await dynamic.get_dynamic_page_info(
+                    credential=credential,
+                    host_mid=uid,
+                    offset=offset,
+                )
+
+                items = result.get("items", [])
+                if not items:
+                    break
+
+                # 动态按时间倒序排列，检查本页最旧的一条是否比截止日期更新
+                # 如果最旧的都比截止日期新，说明还没到旧动态区间，继续翻页
+                page_old_count = 0
+                for item in items:
+                    dyn_id_str = item.get("id_str", "")
+                    if not dyn_id_str:
+                        continue
+
+                    modules = item.get("modules", {})
+                    author = modules.get("module_author", {})
+                    pub_ts = author.get("pub_ts", "0")
+                    timestamp = int(pub_ts) if pub_ts else 0
+
+                    if timestamp < cutoff_ts:
+                        page_old_count += 1
+                        content_summary = ""
+                        dyn_module = modules.get("module_dynamic", {})
+                        desc = dyn_module.get("desc")
+                        if desc and isinstance(desc, dict):
+                            rich_nodes = desc.get("rich_text_nodes", [])
+                            content_summary = "".join(
+                                n.get("text", "") for n in rich_nodes
+                            )[:50]
+
+                        old_dynamics.append({
+                            "dynamic_id": dyn_id_str,
+                            "timestamp": timestamp,
+                            "content_summary": content_summary,
+                        })
+
+                # 本页全部是旧动态，说明已经过了新旧分界点，停止
+                if page_old_count == len(items):
+                    break
+
+                # 翻页
+                has_more = result.get("has_more", False)
+                if not has_more:
+                    break
+                offset = result.get("offset", "")
+                pn += 1
+                if old_dynamics:
+                    print(f"  已扫描 {pn} 页, 找到 {len(old_dynamics)} 条旧动态...")
+                await asyncio.sleep(random.uniform(1.0, 2.0))
+
+            return old_dynamics
+
+        except Exception as e:
+            if attempt < retry - 1:
+                wait_time = (attempt + 1) * 5 + random.uniform(1, 3)
+                print(f"获取动态失败，{wait_time:.1f}秒后重试... ({attempt + 1}/{retry})")
+                await asyncio.sleep(wait_time)
+            else:
+                raise
+
+
 async def get_dynamic_author_uid(dynamic_id: str, credential: Credential, retry: int = 3) -> int:
     """获取动态的作者 UID"""
     for attempt in range(retry):

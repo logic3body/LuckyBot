@@ -183,6 +183,23 @@ NORMAL_COMMENTS = [
 ]
 
 
+async def delete_dynamic(dynamic_id: str, credential: Credential, max_retries: int = 3) -> bool:
+    """删除动态，返回是否成功"""
+    for attempt in range(max_retries):
+        try:
+            d = dynamic.Dynamic(dynamic_id=dynamic_id, credential=credential)
+            await d.delete()
+            log_action("delete", dynamic_id, None, "success")
+            return True
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait = random.uniform(2, 4)
+                await asyncio.sleep(wait)
+            else:
+                log_action("delete", dynamic_id, None, "failed", str(e))
+                raise
+
+
 async def random_interact_hot(dynamic_id: str, credential: Credential, actions: list = None):
     """
     随机互动热门动态（模拟正常用户行为）
