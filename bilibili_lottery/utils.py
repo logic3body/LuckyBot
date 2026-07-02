@@ -182,11 +182,20 @@ def serverchan_push(sckey: str, title: str, content: str) -> bool:
         return False
 
     try:
-        url = f"https://sc.ftqq.com/{sckey}.send"
-        data = urllib.parse.urlencode({
-            "text": title,
-            "desp": content,
-        }).encode("utf-8")
+        # 新版 Server酱 Turbo: key 以 SCT 开头
+        if sckey.startswith("SCT"):
+            url = f"https://sctapi.ftqq.com/{sckey}.send"
+            data = urllib.parse.urlencode({
+                "title": title,
+                "desp": content,
+            }).encode("utf-8")
+        else:
+            # 旧版 Server酱
+            url = f"https://sc.ftqq.com/{sckey}.send"
+            data = urllib.parse.urlencode({
+                "text": title,
+                "desp": content,
+            }).encode("utf-8")
 
         req = urllib.request.Request(url, data=data, method="POST")
         req.add_header("Content-Type", "application/x-www-form-urlencoded")

@@ -175,7 +175,6 @@ NORMAL_COMMENTS = [
     "感谢分享",
     "太棒了",
     "666",
-    "有意思",
     "涨知识了",
     "好活",
     "顶",
@@ -202,18 +201,18 @@ async def delete_dynamic(dynamic_id: str, credential: Credential, max_retries: i
 
 async def random_interact_hot(dynamic_id: str, credential: Credential, actions: list = None):
     """
-    随机互动热门动态（模拟正常用户行为）
+    随机转发热门动态（模拟正常用户行为）
 
     Args:
         dynamic_id: 动态 ID
         credential: 登录凭证
-        actions: 可选的操作列表，默认 ["like", "comment"]
+        actions: 可选的操作列表，默认 ["repost"]
 
     Returns:
         dict: 操作结果
     """
     if actions is None:
-        actions = ["like", "comment"]
+        actions = ["repost"]
 
     results = {}
 

@@ -38,6 +38,12 @@ CREDENTIAL = {
     "buvid3": "your_bili_jct_here",
 }
 
+# 动态最大时效（小时），超过此时间发布的动态将被跳过，默认 168（7 天）
+MAX_DYNAMIC_AGE_HOURS = 168
+
+# 每次 run 最多参与最新 N 条动态中的抽奖，默认 2
+MAX_DYNAMICS_TO_PROCESS = 2
+
 # 可选：Server 酱推送（中奖通知 + Cookie 失效提醒）
 SERVERCHAN_SCKEY = ""
 ```
@@ -140,8 +146,8 @@ pip install -r requirements.txt --user
    └─ 解析 opus 信息，按分类提取具体抽奖链接
 
 3. 去重判断
-   └─ crawled_ids.json - 已爬取动态（保留最近 100 条）
-   └─ participated.json - 已参与抽奖
+   └─ participated.json - 已参与抽奖（唯一去重依据，已参与的永久跳过）
+   └─ crawled_ids.json - 临时爬取缓存（仅用于 session 内复用，不屏蔽重新处理）
 
 4. 自动参与
    └─ 解析抽奖要求（关注/转发/评论/点赞）

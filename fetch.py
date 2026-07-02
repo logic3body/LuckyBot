@@ -48,9 +48,10 @@ async def cmd_fetch(uid: int):
         return
 
     cred = Credential(**user_config.CREDENTIAL)
+    max_age = getattr(user_config, "MAX_DYNAMIC_AGE_HOURS", 168)
 
     print(f"正在获取 UID {uid} 的动态...")
-    dynamics = await fetch_up_dynamics(uid, cred, limit=20)
+    dynamics = await fetch_up_dynamics(uid, cred, limit=20, max_age_hours=max_age)
 
     if not dynamics:
         print("没有新的动态")
@@ -91,10 +92,16 @@ async def cmd_run():
 
     cred = Credential(**user_config.CREDENTIAL)
     uid = user_config.TARGET_UID
+    max_age = getattr(user_config, "MAX_DYNAMIC_AGE_HOURS", 168)
 
-    # 获取动态
+    # 加载已参与记录（用于去重）
+    participated = load_participated()
+
+    # 获取动态，用 participated 做去重（而非 crawled_ids）
     print(f"正在获取 UID {uid} 的动态...")
-    dynamics = await fetch_up_dynamics(uid, cred, limit=20)
+    dynamics = await fetch_up_dynamics(uid, cred, limit=20,
+                                       max_age_hours=max_age,
+                                       skip_ids=participated)
 
     if not dynamics:
         print("没有新的动态，退出")
@@ -107,12 +114,21 @@ async def cmd_run():
     with open(LATEST_FILE, "w", encoding="utf-8") as f:
         json.dump(dynamics, f, ensure_ascii=False, indent=2)
 
-    # 分类
-    classified = classify_dynamics(dynamics)
-    print(f"分类结果: 转发抽奖 {len(classified['forward'])} 个, 互动抽奖 {len(classified['interact'])} 个")
+    # 全量分类（供 cmd_forward / cmd_interact 使用）
+    full_classified = classify_dynamics(dynamics)
+    for cat_name, items in full_classified.items():
+        if items:
+            file_path = CLASSIFIED_DIR / f"{cat_name.replace('抽奖', '')}.json"
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(items, f, ensure_ascii=False, indent=2)
 
-    # 加载已参与记录
-    participated = load_participated()
+    # 只取最新 N 条动态参与抽奖
+    max_process = getattr(user_config, "MAX_DYNAMICS_TO_PROCESS", 2)
+    dynamics_to_process = dynamics[:max_process]
+    classified = classify_dynamics(dynamics_to_process)
+
+    print(f"分类结果: 转发抽奖 {len(classified['forward'])} 个, 互动抽奖 {len(classified['interact'])} 个")
+    print(f"（仅处理最新 {len(dynamics_to_process)} 条动态中的抽奖）")
 
     # 处理转发抽奖
     for item in classified["forward"]:
@@ -148,13 +164,15 @@ async def cmd_run():
             )
             print(f"结果: {result}")
 
-            if any(result.values()):
-                add_participated(dyn_id)
-                print(f"已添加参与记录: {dyn_id}")
+            # 无论是否需要操作，都标记为已处理（避免重复处理无需操作的项）
+            add_participated(dyn_id)
+            print(f"已添加参与记录: {dyn_id}")
 
         except Exception as e:
             print(f"处理失败: {e}")
             log_action("process_forward", dyn_id, 0, "failed", str(e))
+            add_participated(dyn_id)
+            print(f"已标记为已处理（失败）: {dyn_id}")
 
         # 间隔
         await asyncio.sleep(random.uniform(5, 10))
@@ -184,13 +202,15 @@ async def cmd_run():
             result = await participate_interactive_lottery(dyn_id, author_uid, cred)
             print(f"结果: {result}")
 
-            if any(result.values()):
-                add_participated(dyn_id)
-                print(f"已添加参与记录: {dyn_id}")
+            # 无论是否需要操作，都标记为已处理
+            add_participated(dyn_id)
+            print(f"已添加参与记录: {dyn_id}")
 
         except Exception as e:
             print(f"处理失败: {e}")
             log_action("process_interact", dyn_id, 0, "failed", str(e))
+            add_participated(dyn_id)
+            print(f"已标记为已处理（失败）: {dyn_id}")
 
         # 间隔
         await asyncio.sleep(random.uniform(5, 10))
@@ -242,11 +262,13 @@ async def cmd_forward():
             )
             print(f"结果: {result}")
 
-            if any(result.values()):
-                add_participated(dyn_id)
+            # 无论是否需要操作，都标记为已处理
+            add_participated(dyn_id)
 
         except Exception as e:
             print(f"失败: {e}")
+            # 动态已删除/不可见等情况也标记为已处理，避免重复尝试
+            add_participated(dyn_id)
 
         await asyncio.sleep(random.uniform(5, 10))
 
@@ -290,11 +312,12 @@ async def cmd_interact():
             result = await participate_interactive_lottery(dyn_id, author_uid, cred)
             print(f"结果: {result}")
 
-            if any(result.values()):
-                add_participated(dyn_id)
+            # 无论是否需要操作，都标记为已处理
+            add_participated(dyn_id)
 
         except Exception as e:
             print(f"失败: {e}")
+            add_participated(dyn_id)
 
         await asyncio.sleep(random.uniform(5, 10))
 
@@ -394,7 +417,7 @@ async def cmd_random_interact(count: int = 3):
 
     # 随机选择指定数量的动态
     selected = random.sample(hot_items, min(count, len(hot_items)))
-    print(f"将随机互动 {len(selected)} 条热门动态\n")
+    print(f"将随机转发 {len(selected)} 条热门动态\n")
 
     for i, item in enumerate(selected, 1):
         # 提取动态 ID
@@ -418,7 +441,7 @@ async def cmd_random_interact(count: int = 3):
         # 随机间隔，模拟真人
         await asyncio.sleep(random.uniform(10, 30))
 
-    print(f"\n随机互动完成")
+    print(f"\n随机转发完成")
 
 
 async def cmd_clean(days: int = 30, confirm: bool = False):
@@ -487,7 +510,7 @@ async def cmd_clean(days: int = 30, confirm: bool = False):
             fail_count += 1
 
         # 随机延迟，避免触发风控
-        await asyncio.sleep(random.uniform(2, 5))
+        await asyncio.sleep(random.uniform(0.3, 0.8))
 
     print(f"\n清理完成: 成功 {success_count}, 失败 {fail_count}, 共 {len(old_dynamics)} 条")
 
@@ -501,7 +524,7 @@ def main():
         print("  python fetch.py interact         - 处理互动抽奖")
         print("  python fetch.py check-lottery    - 检测是否中奖")
         print("  python fetch.py check-cookie     - 检查 Cookie 是否有效")
-        print("  python fetch.py random [N]       - 随机互动 N 条热门动态（默认 3）")
+        print("  python fetch.py random [N]       - 随机转发 N 条热门动态（默认 3）")
         print("  python fetch.py clean [--days N] [--confirm] - 清理 N 天前的旧动态（默认 30）")
         return
 

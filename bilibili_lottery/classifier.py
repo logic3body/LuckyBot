@@ -8,48 +8,6 @@ import pathlib
 from .fetcher import CLASSIFIED_DIR, LATEST_FILE
 
 
-def parse_card_data(card_data: dict) -> dict:
-    """从卡片数据中提取动态信息"""
-    return {
-        "type": card_data.get("type", ""),
-        "dynamic_id": str(card_data.get("dynamic_id", "")),
-        "uid": card_data.get("user", {}).get("uid", ""),
-        "content": extract_card_content(card_data),
-    }
-
-
-def extract_card_content(card_data: dict) -> str:
-    """从卡片数据中提取文字内容（支持新旧两种格式）"""
-    # 新格式：直接有 summary 字段
-    if "summary" in card_data:
-        return card_data.get("summary", "")
-
-    # 旧格式：需要解析 content 字段
-    # 转发类型
-    if card_data.get("type") == 1:
-        origin = card_data.get("origin", {})
-        origin_content = origin.get("content", [])
-        if origin_content:
-            return origin_content[0].get("text", "") if isinstance(origin_content, list) else str(origin_content)
-        return ""
-
-    # 图文类型
-    if card_data.get("type") == 2:
-        content = card_data.get("content", [])
-        if isinstance(content, list) and content:
-            return content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
-        return ""
-
-    # 纯文字类型
-    if card_data.get("type") == 4:
-        content = card_data.get("content", [])
-        if isinstance(content, list) and content:
-            return content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
-        return ""
-
-    return ""
-
-
 def get_card_id(card_data: dict) -> str:
     """从卡片数据中获取动态 ID（支持新旧两种格式）"""
     # 新格式：直接有 id 字段
@@ -79,7 +37,7 @@ def parse_classified_prizes(opus_info: dict) -> dict:
 
         for para in paragraphs:
             para_type = para.get("para_type")
-            text_nodes = para.get("text", {}).get("nodes", [])
+            text_nodes = (para.get("text") or {}).get("nodes", [])
 
             para_text = "".join(
                 node.get("word", {}).get("words", "")
@@ -98,7 +56,7 @@ def parse_classified_prizes(opus_info: dict) -> dict:
                 continue
 
             if para_type == 5 and current_cat:
-                items = para.get("list", {}).get("items", [])
+                items = (para.get("list") or {}).get("items", [])
                 for item in items:
                     for node in item.get("nodes", []):
                         if node.get("type") == "TEXT_NODE_TYPE_RICH":
@@ -134,7 +92,7 @@ def extract_opus_content(opus_info: dict) -> str:
             content = mod.get("module_content", {})
             paragraphs = content.get("paragraphs", [])
             for para in paragraphs:
-                text_nodes = para.get("text", {}).get("nodes", [])
+                text_nodes = (para.get("text") or {}).get("nodes", [])
                 for node in text_nodes:
                     if node.get("type") == "TEXT_NODE_TYPE_WORD":
                         words = node.get("word", {}).get("words", "")

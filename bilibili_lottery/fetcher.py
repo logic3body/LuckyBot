@@ -6,6 +6,7 @@ import asyncio
 import json
 import pathlib
 import random
+import time
 
 from bilibili_api import Credential, user, dynamic
 from bilibili_api.utils.utils import get_api
@@ -60,10 +61,38 @@ async def get_hot_dynamics(credential: Credential = None, page: int = 1, retry: 
                 raise
 
 
-async def fetch_up_dynamics(uid: int, credential: Credential, limit: int = 20, retry: int = 3):
-    """爬取指定 UP 主的最新动态，带重试和间隔，自动去重"""
-    # 加载已爬取记录
+def get_publish_timestamp(opus_info: dict) -> int:
+    """从 opus_info 中提取动态的发布时间戳"""
+    modules = opus_info.get("item", {}).get("modules", {})
+
+    if isinstance(modules, dict):
+        return int(modules.get("module_author", {}).get("pub_ts", 0))
+
+    if isinstance(modules, list):
+        for mod in modules:
+            if mod.get("module_type") == "MODULE_TYPE_AUTHOR":
+                return int(mod.get("module_author", {}).get("pub_ts", 0))
+
+    return 0
+
+
+async def fetch_up_dynamics(uid: int, credential: Credential, limit: int = 20,
+                            retry: int = 3, max_age_hours: int = 168,
+                            skip_ids: set = None):
+    """爬取指定 UP 主的最新动态，带重试和间隔，自动去重
+
+    Args:
+        uid: UP 主 UID
+        credential: 登录凭证
+        limit: 每次最多处理多少条
+        retry: 重试次数
+        max_age_hours: 动态最大时效（小时），超过此时间的跳过，默认 168（7 天）
+        skip_ids: 要跳过的动态 ID 集合（如已参与记录），
+                  传入后取代 crawled_ids 作为去重依据
+    """
+    # 加载已爬取记录（仅用作 session 缓存，不做硬去重）
     crawled_ids = load_crawled_ids()
+    now = time.time()
 
     for attempt in range(retry):
         try:
@@ -82,24 +111,39 @@ async def fetch_up_dynamics(uid: int, credential: Credential, limit: int = 20, r
                     if not dyn_id:
                         continue
 
-                    # 去重检查
-                    if dyn_id not in crawled_ids:
-                        opus = d.turn_to_opus()
-                        opus_info = await opus.get_info()
-
-                        if opus_info is None:
-                            print(f"动态 {dyn_id} 返回空数据，跳过")
+                    # 去重检查：优先用 skip_ids（已参与），否则用 crawled_ids
+                    if skip_ids is not None:
+                        if dyn_id in skip_ids:
+                            continue
+                    else:
+                        if dyn_id in crawled_ids:
                             continue
 
-                        new_dynamics.append(opus_info)
-                        new_ids.append(dyn_id)
+                    # 已在本 session 中处理过，跳过（防重复 API 调用）
+                    if dyn_id in new_ids:
+                        continue
 
+                    opus = d.turn_to_opus()
+                    opus_info = await opus.get_info()
+
+                    if not isinstance(opus_info, dict):
+                        print(f"动态 {dyn_id} 返回非预期数据格式，跳过")
+                        continue
+
+                    # 按发布时间过滤过时动态
+                    pub_ts = get_publish_timestamp(opus_info)
+                    if pub_ts and (now - pub_ts) > max_age_hours * 3600:
+                        print(f"动态 {dyn_id} 已超过 {max_age_hours} 小时，跳过")
+                        continue
+
+                    new_dynamics.append(opus_info)
+                    new_ids.append(dyn_id)
                     await asyncio.sleep(random.uniform(1.0, 2.0))
                 except Exception as e:
                     print(f"获取动态详情失败: {e}")
                     continue
 
-            # 更新已爬取记录
+            # 更新已爬取记录（仅作为 session 缓存，不影响下次运行的去重）
             if new_ids:
                 crawled_ids.extend(new_ids)
                 save_crawled_ids(crawled_ids)
@@ -207,9 +251,7 @@ async def fetch_own_dynamics(uid: int, credential: Credential, days: int = 30, r
                 if not items:
                     break
 
-                # 动态按时间倒序排列，检查本页最旧的一条是否比截止日期更新
-                # 如果最旧的都比截止日期新，说明还没到旧动态区间，继续翻页
-                page_old_count = 0
+                # 动态按时间倒序排列，收集过期动态
                 for item in items:
                     dyn_id_str = item.get("id_str", "")
                     if not dyn_id_str:
@@ -221,7 +263,6 @@ async def fetch_own_dynamics(uid: int, credential: Credential, days: int = 30, r
                     timestamp = int(pub_ts) if pub_ts else 0
 
                     if timestamp < cutoff_ts:
-                        page_old_count += 1
                         content_summary = ""
                         dyn_module = modules.get("module_dynamic", {})
                         desc = dyn_module.get("desc")
@@ -237,19 +278,17 @@ async def fetch_own_dynamics(uid: int, credential: Credential, days: int = 30, r
                             "content_summary": content_summary,
                         })
 
-                # 本页全部是旧动态，说明已经过了新旧分界点，停止
-                if page_old_count == len(items):
-                    break
-
                 # 翻页
                 has_more = result.get("has_more", False)
                 if not has_more:
                     break
-                offset = result.get("offset", "")
+                new_offset = result.get("offset")
+                if new_offset is None:
+                    break
+                offset = new_offset
                 pn += 1
-                if old_dynamics:
+                if pn % 10 == 0 or old_dynamics:
                     print(f"  已扫描 {pn} 页, 找到 {len(old_dynamics)} 条旧动态...")
-                await asyncio.sleep(random.uniform(1.0, 2.0))
 
             return old_dynamics
 

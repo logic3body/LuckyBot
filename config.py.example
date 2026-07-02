@@ -13,6 +13,14 @@ CREDENTIAL = {
     "buvid3": "your_buvid3_here",
 }
 
+# 动态最大时效（小时），超过此时间发布的动态将被跳过
+# 避免参与已开奖的过时抽奖，默认 168（7 天）
+MAX_DYNAMIC_AGE_HOURS = 168
+
+# 每次 run 最多参与最新 N 条动态中的抽奖（默认 2）
+# 避免同时参与过多过时抽奖
+MAX_DYNAMICS_TO_PROCESS = 2
+
 # Server酱 SCKEY（用于推送中奖通知）
 # 申请地址: https://sct.ftqq.com/
 # 留空则不启用推送
