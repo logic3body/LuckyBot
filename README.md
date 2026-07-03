@@ -27,25 +27,37 @@ uv pip install -r requirements.txt
 
 ## 配置
 
-1. 复制 `config.py.example` 为 `config.py`
-2. 填写你的 UID 和 Cookie 凭证：
+复制 `config.py.example` 为 `config.py` 并填写：
 
 ```python
+# ---------- 基本配置 ----------
+
+# 要爬取的 UP 主 UID（如互动抽奖娘）
 TARGET_UID = 3546776042736296
+
+# 登录凭证（见下方获取方法）
 CREDENTIAL = {
     "sessdata": "your_sessdata_here",
     "bili_jct": "your_bili_jct_here",
-    "buvid3": "your_bili_jct_here",
+    "buvid3": "your_buvid3_here",
 }
 
-# 动态最大时效（小时），超过此时间发布的动态将被跳过，默认 168（7 天）
+# ---------- 可选配置 ----------
+
+# 动态最大时效（小时），超时的跳过，默认 168（7 天）
 MAX_DYNAMIC_AGE_HOURS = 168
 
 # 每次 run 最多参与最新 N 条动态中的抽奖，默认 2
 MAX_DYNAMICS_TO_PROCESS = 2
 
-# 可选：Server 酱推送（中奖通知 + Cookie 失效提醒）
+# Server 酱推送（中奖通知 + Cookie 失效提醒），留空不启用
 SERVERCHAN_SCKEY = ""
+
+# 关注扫描时额外排除的作者 UID（如抽奖汇总工具号 100680137）
+EXCLUDE_UIDS = []
+
+# 关注流扫描条数上限，默认 500（约 25 页），关注量大可调大
+FOLLOW_SCAN_LIMIT = 500
 ```
 
 **获取 Cookie 方法**：登录哔哩哔哩后，F12 打开开发者工具，在 Network 面板找到任意请求，复制 Cookie 头即可。
@@ -86,58 +98,68 @@ python fetch.py clean --days 30 --confirm
 
 ## 青龙面板部署
 
-### 1. 拉取代码
+### 1. 添加订阅（拉库）
 
-```bash
-cd /ql/data/scripts
-git clone https://github.com/your-username/bilibili-lottery.git
-cd bilibili-lottery
-pip install -r requirements.txt
+青龙面板 → 订阅管理 → 新建订阅：
+
+| 配置项 | 值 |
+|--------|-----|
+| 名称 | bilibili-lottery |
+| 类型 | 公开仓库 |
+| 仓库地址 | `https://github.com/你的用户名/bilibili-lottery.git` |
+| 定时类型 | 手动（或按需设置，如 `0 6 * * *` 每天 6 点检查更新） |
+| 白名单 | `fetch.py` |
+| 文件后缀 | `.py` |
+
+保存后点击「运行」拉取代码。后续仓库有更新时也会自动同步。
+
+> 青龙面板 v2.10+ 的脚本目录为 `/ql/data/scripts/<仓库名>`，旧版本可能是 `/ql/repo`。
+
+### 2. 安装依赖
+
+青龙面板 → 依赖管理 → Python 依赖 → 添加：
+
+```
+bilibili-api
 ```
 
-> 青龙面板 v2.10+ 的脚本目录为 `/ql/data/scripts`，旧版本可能是 `/ql/repo`，请根据实际版本调整。
+### 3. 配置文件
 
-### 2. 配置文件
+青龙面板 → 文件管理 → 进入 `bilibili-lottery` 目录 → 复制 `config.py.example` 为 `config.py` → 编辑并填入凭证。
 
-```bash
-cp config.py.example config.py
-# 编辑 config.py，填入你的 TARGET_UID 和 CREDENTIAL
-```
-
-在青龙面板中可以通过「文件管理」直接编辑 `config.py`，或通过终端：
+或者通过终端：
 
 ```bash
-cat > /ql/data/scripts/bilibili-lottery/config.py << 'EOF'
+cp /ql/data/scripts/bilibili-lottery/config.py.example /ql/data/scripts/bilibili-lottery/config.py
+# 然后编辑 config.py，或直接用 cat 覆盖
+cat > /ql/data/scripts/bilibili-lottery/config.py << 'CONFIGEOF'
 TARGET_UID = 3546776042736296
 CREDENTIAL = {
     "sessdata": "your_sessdata_here",
     "bili_jct": "your_bili_jct_here",
-    "buvid3": "your_bili_jct_here",
+    "buvid3": "your_buvid3_here",
 }
+MAX_DYNAMIC_AGE_HOURS = 168
+MAX_DYNAMICS_TO_PROCESS = 2
 SERVERCHAN_SCKEY = ""
-EOF
+EXCLUDE_UIDS = [100680137]
+FOLLOW_SCAN_LIMIT = 500
+CONFIGEOF
 ```
 
-### 3. 添加定时任务
+> `config.py` 不会随仓库更新被覆盖（青龙只同步 `.py` 白名单）。
 
-进入青龙面板「定时任务」页面，添加以下任务：
+### 4. 添加定时任务
 
-| 任务名称 | 命令 | 定时规则 |
-|---------|------|---------|
-| B站抽奖 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py run` | `0 */30 * * *`（每 30 分钟） |
-| B站中奖检测 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py check-lottery` | `0 9,21 * * *`（每天 9 点、21 点） |
-| B站Cookie检查 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py check-cookie` | `0 8 * * *`（每天 8 点） |
-| B站清理旧动态 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py clean --days 30 --confirm` | `0 3 1 * *`（每月 1 号凌晨 3 点） |
+青龙面板 → 定时任务 → 添加任务：
 
-### 4. 依赖安装问题
-
-如果青龙面板中 `pip install` 权限不足，可以尝试：
-
-```bash
-pip install -r requirements.txt --user
-# 或指定 Python 路径
-/ql/data/scripts/bilibili-lottery/.venv/bin/pip install -r requirements.txt
-```
+| 任务名称 | 命令 | 定时规则 | 说明 |
+|---------|------|---------|------|
+| B站抽奖 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py run` | `0 */30 * * *` | 每 30 分钟，处理互动抽奖娘的动态 |
+| B站关注流 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py follow` | `0 */60 * * *` | 每 60 分钟，扫描关注流中零散抽奖 |
+| B站中奖检测 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py check-lottery` | `0 9,21 * * *` | 每天 9 点、21 点 |
+| B站Cookie检查 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py check-cookie` | `0 8 * * *` | 每天 8 点 |
+| B站清理旧动态 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py clean --days 30 --confirm` | `0 3 1 * *` | 每月 1 号凌晨 3 点 |
 
 ## 工作流程
 
