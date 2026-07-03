@@ -218,6 +218,137 @@ async def get_dynamic_content(dynamic_id: str, credential: Credential, retry: in
                 raise
 
 
+# ── 关注动态流抽奖检测 ─────────────────────────────────────
+
+LOTTERY_DETECT_KEYWORDS = [
+    "抽奖", "抽送", "抽一位", "抽两位", "抽一位", "抽二位",
+    "抽1位", "抽2位", "抽3位", "抽4位", "抽5位",
+    "抽6位", "抽7位", "抽8位", "抽9位", "抽10位",
+    "抽一名", "抽两名",
+    "送.*位",   # 不用于精确匹配，这里只是文档说明
+]
+
+
+def extract_text_from_feed_item(item: dict) -> str:
+    """从 get_dynamic_page_info 返回的 item dict 中提取文字内容
+
+    文字可能在两个位置：
+    1. desc.rich_text_nodes（纯文字动态）
+    2. major.opus.summary.text（opus 格式动态）
+    """
+    modules = item.get("modules")
+    if not isinstance(modules, dict):
+        return ""
+    dyn_mod = modules.get("module_dynamic")
+    if not isinstance(dyn_mod, dict):
+        return ""
+
+    texts = []
+
+    # 来源 1：desc.rich_text_nodes
+    desc = dyn_mod.get("desc")
+    if isinstance(desc, dict):
+        nodes = desc.get("rich_text_nodes", [])
+        for node in nodes:
+            if isinstance(node, dict):
+                t = node.get("text", "")
+                if t:
+                    texts.append(t)
+
+    # 来源 2：major.opus.summary.text（MAJOR_TYPE_OPUS 格式）
+    major = dyn_mod.get("major")
+    if isinstance(major, dict) and major.get("type") == "MAJOR_TYPE_OPUS":
+        opus = major.get("opus")
+        if isinstance(opus, dict):
+            summary = opus.get("summary")
+            if isinstance(summary, dict):
+                t = summary.get("text", "")
+                if t:
+                    texts.append(t)
+
+    return "".join(texts)
+
+
+def extract_author_from_feed_item(item: dict) -> tuple:
+    """从 item dict 提取作者信息，返回 (name, mid)"""
+    modules = item.get("modules")
+    if not isinstance(modules, dict):
+        return ("", 0)
+    author = modules.get("module_author")
+    if not isinstance(author, dict):
+        return ("", 0)
+    return (author.get("name", ""), author.get("mid", 0))
+
+
+def is_lottery_text(text: str) -> bool:
+    """判断文字是否包含抽奖相关关键词"""
+    if not text:
+        return False
+    for kw in LOTTERY_DETECT_KEYWORDS:
+        if kw in text:
+            return True
+    return False
+
+
+async def fetch_follow_lotteries(credential: Credential, limit: int = 60,
+                                 retry: int = 3, skip_ids: set = None) -> list:
+    """获取关注动态流，筛选出抽奖动态
+
+    使用 get_dynamic_page_info 不传 host_mid，获取当前用户的所有关注动态，
+    直接从返回的 item dict 中提取文字和作者信息，无需额外 API 调用。
+
+    Args:
+        credential: 登录凭证
+        limit: 最多检查多少条动态
+        retry: 重试次数
+        skip_ids: 要跳过的动态 ID 集合（如已参与记录）
+
+    Returns:
+        list[dict]: {dyn_id, author_uid, content, author_name}
+    """
+    if skip_ids is None:
+        skip_ids = set()
+
+    for attempt in range(retry):
+        try:
+            result = await dynamic.get_dynamic_page_info(credential=credential)
+            items = result.get("items", [])
+            print(f"  关注动态流共 {len(items)} 条")
+
+            candidates = []
+            for item in items[:limit]:
+                dyn_id = str(item.get("id_str", ""))
+                if not dyn_id or dyn_id in skip_ids:
+                    continue
+
+                text = extract_text_from_feed_item(item)
+                if not is_lottery_text(text):
+                    continue
+
+                author_name, author_uid = extract_author_from_feed_item(item)
+                if not author_uid:
+                    continue
+
+                candidates.append({
+                    "dyn_id": dyn_id,
+                    "author_uid": author_uid,
+                    "content": text,
+                    "author_name": author_name,
+                })
+
+            if candidates:
+                print(f"  筛选出 {len(candidates)} 条抽奖动态")
+            return candidates
+
+        except Exception as e:
+            if attempt < retry - 1:
+                wait = (attempt + 1) * 5 + random.uniform(1, 3)
+                print(f"获取关注动态失败，{wait:.1f}秒后重试... ({attempt + 1}/{retry})")
+                await asyncio.sleep(wait)
+            else:
+                raise
+
+
 async def fetch_own_dynamics(uid: int, credential: Credential, days: int = 30, retry: int = 3) -> list:
     """
     获取自己账号中指定天数前的旧动态

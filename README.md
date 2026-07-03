@@ -71,6 +71,9 @@ python fetch.py check-lottery
 # 检查 Cookie 是否有效
 python fetch.py check-cookie
 
+# 参与关注动态流中的抽奖
+python fetch.py follow
+
 # 随机互动 N 条热门动态（默认 3）
 python fetch.py random [N]
 

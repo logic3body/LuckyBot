@@ -12,6 +12,7 @@ from bilibili_api import Credential
 
 from bilibili_lottery import (
     fetch_up_dynamics,
+    fetch_follow_lotteries,
     get_dynamic_content,
     get_dynamic_author_uid,
     get_hot_dynamics,
@@ -444,6 +445,56 @@ async def cmd_random_interact(count: int = 3):
     print(f"\n随机转发完成")
 
 
+async def cmd_follow():
+    """处理关注动态流中的抽奖"""
+    try:
+        user_config = importlib.import_module("config")
+    except ModuleNotFoundError:
+        print("请先创建 config.py 文件")
+        return
+
+    cred = Credential(**user_config.CREDENTIAL)
+
+    participated = load_participated()
+
+    print("正在扫描关注动态流...")
+    candidates = await fetch_follow_lotteries(cred, limit=60, skip_ids=participated)
+
+    if not candidates:
+        print("没有找到抽奖动态")
+        return
+
+    print(f"将参与 {len(candidates)} 条抽奖动态\n")
+
+    for i, c in enumerate(candidates, 1):
+        dyn_id = c["dyn_id"]
+
+        print(f"[{i}/{len(candidates)}] {c['author_name']}: ", end="")
+        print(f"{c['content'][:80]}...")
+
+        try:
+            requirements = parse_forward_requirements(c["content"])
+            print(f"  解析要求: {requirements}")
+
+            random_comment = random.choice(COMMENT_PRESETS)
+            result = await participate_forward_lottery(
+                dyn_id, c["author_uid"], requirements, cred,
+                comment_content=random_comment
+            )
+            print(f"  结果: {result}")
+
+            add_participated(dyn_id)
+
+        except Exception as e:
+            print(f"  处理失败: {e}")
+            log_action("process_follow", dyn_id, c["author_uid"], "failed", str(e))
+            add_participated(dyn_id)
+
+        await asyncio.sleep(random.uniform(5, 10))
+
+    print(f"\n关注动态流处理完成")
+
+
 async def cmd_clean(days: int = 30, confirm: bool = False):
     """批量清理旧动态"""
     from datetime import datetime
@@ -524,6 +575,7 @@ def main():
         print("  python fetch.py interact         - 处理互动抽奖")
         print("  python fetch.py check-lottery    - 检测是否中奖")
         print("  python fetch.py check-cookie     - 检查 Cookie 是否有效")
+        print("  python fetch.py follow          - 参与关注动态流中的抽奖")
         print("  python fetch.py random [N]       - 随机转发 N 条热门动态（默认 3）")
         print("  python fetch.py clean [--days N] [--confirm] - 清理 N 天前的旧动态（默认 30）")
         return
@@ -546,6 +598,8 @@ def main():
         asyncio.run(cmd_check_lottery())
     elif mode == "check-cookie":
         asyncio.run(cmd_check_cookie())
+    elif mode == "follow":
+        asyncio.run(cmd_follow())
     elif mode == "random":
         count = int(sys.argv[2]) if len(sys.argv) > 2 else 3
         asyncio.run(cmd_random_interact(count))
