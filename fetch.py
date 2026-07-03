@@ -30,6 +30,7 @@ from bilibili_lottery import (
 )
 from bilibili_lottery.fetcher import LATEST_FILE, CLASSIFIED_DIR
 from bilibili_lottery.classifier import classify_dynamics, save_classified_prizes
+from bilibili_lottery.parser import extract_opus_links
 from bilibili_lottery.utils import (
     load_participated,
     add_participated,
@@ -153,11 +154,23 @@ async def cmd_run():
         print(f"  处理 UID {uid} 的抽奖")
         print(f"{'='*50}")
 
+        # 读取 flat UID 列表
+        flat_uids = getattr(user_config, "FLAT_FORWARD_UIDS", [])
+
         # 只取最新 N 条动态参与抽奖
         dynamics_to_process = dynamics[:max_process]
-        classified = classify_dynamics(dynamics_to_process)
 
-        print(f"分类结果: 转发抽奖 {len(classified['forward'])} 个, 互动抽奖 {len(classified['interact'])} 个")
+        if uid in flat_uids:
+            # "平铺转发"模式：直接从内容提取链接，全部当转发抽奖处理
+            classified = {"forward": [], "charge": [], "subscribe": [], "interact": []}
+            for opus_info in dynamics_to_process:
+                items = extract_opus_links(opus_info)
+                classified["forward"].extend(items)
+            print(f"平铺模式: 提取到 {len(classified['forward'])} 个抽奖链接")
+        else:
+            classified = classify_dynamics(dynamics_to_process)
+            print(f"分类结果: 转发抽奖 {len(classified['forward'])} 个, 互动抽奖 {len(classified['interact'])} 个")
+
         print(f"（仅处理最新 {len(dynamics_to_process)} 条动态中的抽奖）")
 
         # 处理转发抽奖
