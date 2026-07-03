@@ -160,11 +160,18 @@ CONFIGEOF
 
 | 任务名称 | 命令 | 定时规则 | 说明 |
 |---------|------|---------|------|
-| B站抽奖 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py run` | `0 */30 * * *` | 每 30 分钟，处理互动抽奖娘的动态 |
-| B站关注流 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py follow` | `0 */60 * * *` | 每 60 分钟，扫描关注流中零散抽奖 |
+| B站抽奖 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py run` | `0 */2 * * *` | 每 2 小时，处理汇总账号的抽奖 |
+| B站关注流 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py follow` | `0 */6 * * *` | 每 6 小时，扫描关注流中零散抽奖 |
+| B站防黑1 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py random 2` | `30 9 * * *` | 每天 9:30，随机互动防黑号 |
+| B站防黑2 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py random 2` | `30 14 * * *` | 每天 14:30，随机互动防黑号 |
+| B站防黑3 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py random 2` | `30 20 * * *` | 每天 20:30，随机互动防黑号 |
 | B站中奖检测 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py check-lottery` | `0 9,21 * * *` | 每天 9 点、21 点 |
 | B站Cookie检查 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py check-cookie` | `0 8 * * *` | 每天 8 点 |
 | B站清理旧动态 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py clean --days 30 --confirm` | `0 3 1 * *` | 每月 1 号凌晨 3 点 |
+
+**关于并发说明**：多个任务可能同时触发（如 9:00 中奖检测 + 9:30 随机互动），`python fetch.py` 内部没有分布式锁，但每个命令操作不同的 API 和数据文件，不会冲突。如果担心 API 频率，可以将部分任务的分钟偏移错开（如 `run` 改为 `5 */2 * * *`）。
+
+**关于随机互动防黑**：`random 2` 会从 B 站热门动态中随机选 2 条进行转发/评论/点赞，模拟正常用户行为。固定在 9:30、14:30、20:30 三次，避免了全在整点扎堆。实际选取的动态是随机的，单一固定时间不会导致行为模式被识别。
 
 ## 工作流程
 
