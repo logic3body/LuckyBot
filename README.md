@@ -32,8 +32,12 @@ uv pip install -r requirements.txt
 ```python
 # ---------- 基本配置 ----------
 
-# 要爬取的 UP 主 UID（如互动抽奖娘）
+# 要爬取的 UP 主 UID（主目标，如互动抽奖娘）
 TARGET_UID = 3546776042736296
+
+# 额外的汇总账号 UID（如其他的抽奖工具号）
+# run 命令会依次处理 TARGET_UID 和此列表中的每个 UID
+TARGET_UIDS = []
 
 # 登录凭证（见下方获取方法）
 CREDENTIAL = {
@@ -134,6 +138,7 @@ cp /ql/data/scripts/bilibili-lottery/config.py.example /ql/data/scripts/bilibili
 # 然后编辑 config.py，或直接用 cat 覆盖
 cat > /ql/data/scripts/bilibili-lottery/config.py << 'CONFIGEOF'
 TARGET_UID = 3546776042736296
+TARGET_UIDS = [100680137]
 CREDENTIAL = {
     "sessdata": "your_sessdata_here",
     "bili_jct": "your_bili_jct_here",

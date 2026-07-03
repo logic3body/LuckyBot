@@ -3,8 +3,12 @@
 复制此文件为 config.py 并填写实际值
 """
 
-# 要爬取的 UP 主 UID
+# 要爬取的 UP 主 UID（主目标）
 TARGET_UID = 123456
+
+# 额外的汇总账号 UID 列表（如其他的抽奖工具号）
+# run 命令会依次处理 TARGET_UID 和此列表中的每个 UID
+TARGET_UIDS = []
 
 # 登录凭证
 CREDENTIAL = {
