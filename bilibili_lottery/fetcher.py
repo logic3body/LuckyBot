@@ -9,6 +9,7 @@ import random
 import time
 
 from bilibili_api import Credential, user, dynamic
+from bilibili_api.dynamic import DynamicType
 from bilibili_api.utils.utils import get_api
 from bilibili_api.utils.network import Api
 
@@ -290,52 +291,98 @@ def is_lottery_text(text: str) -> bool:
     return False
 
 
-async def fetch_follow_lotteries(credential: Credential, limit: int = 60,
-                                 retry: int = 3, skip_ids: set = None) -> list:
+async def fetch_follow_lotteries(credential: Credential, limit: int = 200,
+                                 retry: int = 3, skip_ids: set = None,
+                                 exclude_uids: set = None) -> list:
     """获取关注动态流，筛选出抽奖动态
 
     使用 get_dynamic_page_info 不传 host_mid，获取当前用户的所有关注动态，
     直接从返回的 item dict 中提取文字和作者信息，无需额外 API 调用。
+    自动翻页直到收集到足够条数或用完分页。
 
     Args:
         credential: 登录凭证
-        limit: 最多检查多少条动态
+        limit: 最多检查多少条动态（默认 200）
         retry: 重试次数
         skip_ids: 要跳过的动态 ID 集合（如已参与记录）
+        exclude_uids: 要排除的作者 UID 集合（如自己、抽奖汇总号）
 
     Returns:
         list[dict]: {dyn_id, author_uid, content, author_name}
     """
     if skip_ids is None:
         skip_ids = set()
+    if exclude_uids is None:
+        exclude_uids = set()
 
     for attempt in range(retry):
         try:
-            result = await dynamic.get_dynamic_page_info(credential=credential)
-            items = result.get("items", [])
-            print(f"  关注动态流共 {len(items)} 条")
-
             candidates = []
-            for item in items[:limit]:
-                dyn_id = str(item.get("id_str", ""))
-                if not dyn_id or dyn_id in skip_ids:
-                    continue
+            offset = None
+            page = 1
+            total_checked = 0
 
-                text = extract_text_from_feed_item(item)
-                if not is_lottery_text(text):
-                    continue
+            while True:
+                result = await dynamic.get_dynamic_page_info(
+                    credential=credential,
+                    _type=DynamicType.ALL,
+                    offset=offset,
+                )
+                items = result.get("items", [])
+                if not items:
+                    break
 
-                author_name, author_uid = extract_author_from_feed_item(item)
-                if not author_uid:
-                    continue
+                for item in items:
+                    if total_checked >= limit:
+                        break
+                    total_checked += 1
 
-                candidates.append({
-                    "dyn_id": dyn_id,
-                    "author_uid": author_uid,
-                    "content": text,
-                    "author_name": author_name,
-                })
+                    dyn_id = str(item.get("id_str", ""))
+                    if not dyn_id or dyn_id in skip_ids:
+                        continue
 
+                    # 跳过排除 UID 的动态
+                    _, author_uid = extract_author_from_feed_item(item)
+                    if author_uid and author_uid in exclude_uids:
+                        continue
+
+                    text = extract_text_from_feed_item(item)
+                    if not is_lottery_text(text):
+                        continue
+
+                    author_name = ""
+                    if not author_uid:
+                        author_name, author_uid = extract_author_from_feed_item(item)
+                    else:
+                        modules = item.get("modules", {})
+                        if isinstance(modules, dict):
+                            author = modules.get("module_author", {})
+                            if isinstance(author, dict):
+                                author_name = author.get("name", "")
+
+                    if not author_uid:
+                        continue
+
+                    candidates.append({
+                        "dyn_id": dyn_id,
+                        "author_uid": author_uid,
+                        "content": text,
+                        "author_name": author_name,
+                    })
+
+                if total_checked >= limit:
+                    break
+
+                has_more = result.get("has_more", False)
+                if not has_more:
+                    break
+                new_offset = result.get("offset")
+                if new_offset is None:
+                    break
+                offset = new_offset
+                page += 1
+
+            print(f"  已扫描 {total_checked} 条（{page} 页）")
             if candidates:
                 print(f"  筛选出 {len(candidates)} 条抽奖动态")
             return candidates

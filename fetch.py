@@ -455,10 +455,21 @@ async def cmd_follow():
 
     cred = Credential(**user_config.CREDENTIAL)
 
+    # 获取自己的 UID
+    from bilibili_api import user as user_module
+    self_info = await user_module.get_self_info(cred)
+    self_uid = self_info["mid"]
+
+    # 排除自己和抽奖汇总号
+    exclude_uids = {self_uid, user_config.TARGET_UID}
+
     participated = load_participated()
 
     print("正在扫描关注动态流...")
-    candidates = await fetch_follow_lotteries(cred, limit=60, skip_ids=participated)
+    candidates = await fetch_follow_lotteries(
+        cred, limit=200, skip_ids=participated,
+        exclude_uids=exclude_uids,
+    )
 
     if not candidates:
         print("没有找到抽奖动态")
