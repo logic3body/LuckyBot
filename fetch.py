@@ -460,14 +460,19 @@ async def cmd_follow():
     self_info = await user_module.get_self_info(cred)
     self_uid = self_info["mid"]
 
-    # 排除自己和抽奖汇总号
+    # 排除自己、抽奖汇总号、以及配置中额外的 UID
     exclude_uids = {self_uid, user_config.TARGET_UID}
+    extra = getattr(user_config, "EXCLUDE_UIDS", [])
+    exclude_uids.update(extra)
+
+    # 扫描条数配置
+    scan_limit = getattr(user_config, "FOLLOW_SCAN_LIMIT", 500)
 
     participated = load_participated()
 
     print("正在扫描关注动态流...")
     candidates = await fetch_follow_lotteries(
-        cred, limit=200, skip_ids=participated,
+        cred, limit=scan_limit, skip_ids=participated,
         exclude_uids=exclude_uids,
     )
 

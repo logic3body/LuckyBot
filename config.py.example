@@ -25,3 +25,11 @@ MAX_DYNAMICS_TO_PROCESS = 2
 # 申请地址: https://sct.ftqq.com/
 # 留空则不启用推送
 SERVERCHAN_SCKEY = ""
+
+# 关注动态流扫描时额外排除的作者 UID（如抽奖汇总工具号）
+# 格式: [100680137, 123456789]
+EXCLUDE_UIDS = []
+
+# 关注动态流扫描条数上限（关注 UP 主较多时可适当调大）
+# 默认 500，约 25 页 API 请求
+FOLLOW_SCAN_LIMIT = 500
