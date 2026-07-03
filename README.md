@@ -160,8 +160,8 @@ CONFIGEOF
 
 | 任务名称 | 命令 | 定时规则 | 说明 |
 |---------|------|---------|------|
-| B站抽奖 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py run` | `0 */2 * * *` | 每 2 小时，处理汇总账号的抽奖 |
-| B站关注流 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py follow` | `0 */6 * * *` | 每 6 小时，扫描关注流中零散抽奖 |
+| B站抽奖 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py run` | `0 8 * * *` | 每天 8 点，处理汇总账号的抽奖 |
+| B站关注流 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py follow` | `0 12 * * *` | 每天 12 点，扫描关注流中零散抽奖 |
 | B站防黑1 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py random 2` | `30 9 * * *` | 每天 9:30，随机互动防黑号 |
 | B站防黑2 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py random 2` | `30 14 * * *` | 每天 14:30，随机互动防黑号 |
 | B站防黑3 | `cd /ql/data/scripts/bilibili-lottery && python fetch.py random 2` | `30 20 * * *` | 每天 20:30，随机互动防黑号 |
