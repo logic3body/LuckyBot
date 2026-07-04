@@ -208,13 +208,13 @@ async def cmd_run():
                 print(f"结果: {result}")
 
                 # 无论是否需要操作，都标记为已处理（避免重复处理无需操作的项）
-                add_participated(dyn_id)
+                add_participated(dyn_id, memory=participated)
                 print(f"已添加参与记录: {dyn_id}")
 
             except Exception as e:
                 print(f"处理失败: {e}")
                 log_action("process_forward", dyn_id, 0, "failed", str(e))
-                add_participated(dyn_id)
+                add_participated(dyn_id, memory=participated)
                 print(f"已标记为已处理（失败）: {dyn_id}")
 
             # 间隔
@@ -246,13 +246,13 @@ async def cmd_run():
                 print(f"结果: {result}")
 
                 # 无论是否需要操作，都标记为已处理
-                add_participated(dyn_id)
+                add_participated(dyn_id, memory=participated)
                 print(f"已添加参与记录: {dyn_id}")
 
             except Exception as e:
                 print(f"处理失败: {e}")
                 log_action("process_interact", dyn_id, 0, "failed", str(e))
-                add_participated(dyn_id)
+                add_participated(dyn_id, memory=participated)
                 print(f"已标记为已处理（失败）: {dyn_id}")
 
             # 间隔
@@ -306,12 +306,12 @@ async def cmd_forward():
             print(f"结果: {result}")
 
             # 无论是否需要操作，都标记为已处理
-            add_participated(dyn_id)
+            add_participated(dyn_id, memory=participated)
 
         except Exception as e:
             print(f"失败: {e}")
             # 动态已删除/不可见等情况也标记为已处理，避免重复尝试
-            add_participated(dyn_id)
+            add_participated(dyn_id, memory=participated)
 
         await asyncio.sleep(random.uniform(5, 10))
 
@@ -356,11 +356,11 @@ async def cmd_interact():
             print(f"结果: {result}")
 
             # 无论是否需要操作，都标记为已处理
-            add_participated(dyn_id)
+            add_participated(dyn_id, memory=participated)
 
         except Exception as e:
             print(f"失败: {e}")
-            add_participated(dyn_id)
+            add_participated(dyn_id, memory=participated)
 
         await asyncio.sleep(random.uniform(5, 10))
 
@@ -541,12 +541,12 @@ async def cmd_follow():
             )
             print(f"  结果: {result}")
 
-            add_participated(dyn_id)
+            add_participated(dyn_id, memory=participated)
 
         except Exception as e:
             print(f"  处理失败: {e}")
             log_action("process_follow", dyn_id, c["author_uid"], "failed", str(e))
-            add_participated(dyn_id)
+            add_participated(dyn_id, memory=participated)
 
         await asyncio.sleep(random.uniform(5, 10))
 

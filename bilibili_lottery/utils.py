@@ -112,11 +112,23 @@ def save_participated(ids: set, path: pathlib.Path = pathlib.Path("participated.
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def add_participated(dyn_id: str, path: pathlib.Path = pathlib.Path("participated.json")):
-    """添加已参与记录"""
+def add_participated(dyn_id: str, path: pathlib.Path = None, memory: set = None):
+    """添加已参与记录
+
+    同时可更新内存中的集合，避免同一个进程内重复参与。
+
+    Args:
+        dyn_id: 动态 ID
+        path: participated.json 路径，默认 None 为项目根目录
+        memory: 内存中的已参与集合（可选），传入后同步更新
+    """
+    if path is None:
+        path = pathlib.Path("participated.json")
     ids = load_participated(path)
     ids.add(dyn_id)
     save_participated(ids, path)
+    if memory is not None:
+        memory.add(dyn_id)
 
 
 def load_notified_winnings(path: pathlib.Path = pathlib.Path("notified_winnings.json")) -> set:
