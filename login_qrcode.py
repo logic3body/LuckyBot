@@ -24,15 +24,15 @@ async def main():
 
     # 保存二维码图片
     pic = qr.get_qrcode_picture()
-    pic.save(QR_CODE_FILE)
+    pic.to_file(QR_CODE_FILE)
     print(f"二维码已保存: {os.path.abspath(QR_CODE_FILE)}")
 
-    # 同时在终端显示
+    # 终端二维码（青龙等无头环境可直接显示）
     term = qr.get_qrcode_terminal()
     if term:
         print(term)
 
-    print("用手机 B 站 App 扫码登录\n")
+    print("打开 B 站 App 扫码登录\n")
 
     # 轮询扫码状态
     last_event = None
@@ -47,7 +47,7 @@ async def main():
             print("二维码已过期，重新生成...")
             await qr.generate_qrcode()
             pic = qr.get_qrcode_picture()
-            pic.save(QR_CODE_FILE)
+            pic.to_file(QR_CODE_FILE)
             term = qr.get_qrcode_terminal()
             if term:
                 print(term)
