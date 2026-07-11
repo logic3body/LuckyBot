@@ -17,6 +17,7 @@ from bilibili_api.dynamic import get_dynamic_page_info
 import config
 
 from bilibili_lottery import delete_dynamic
+from bilibili_lottery.utils import load_credential as _load_cred
 
 # 要清理的账号 UID（局中的旁观者）
 OWN_UID = 3546871643506991
@@ -60,7 +61,8 @@ async def fetch_own_dynamics(cred: Credential):
 
 
 async def main():
-    cred = Credential(**config.CREDENTIAL)
+    cred_data = _load_cred()
+    cred = Credential(**cred_data)
 
     print("拉取自身动态列表...")
     items = await fetch_own_dynamics(cred)

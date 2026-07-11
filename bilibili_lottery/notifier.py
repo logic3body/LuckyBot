@@ -114,7 +114,8 @@ async def main():
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    from .utils import load_credential
+    cred = Credential(**load_credential())
 
     print("正在检测通知...")
     results = await check_lottery_winning(cred)
