@@ -178,6 +178,81 @@ def log_winning(notification: dict):
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
+# ─── credential 持久化与自动刷新 ─────────────────────────────
+
+CREDENTIAL_FILE = pathlib.Path("credential.json")
+
+
+def load_credential() -> dict:
+    """加载凭证，优先 credential.json，回退到 config.py"""
+    if CREDENTIAL_FILE.exists():
+        try:
+            with open(CREDENTIAL_FILE) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    import config as _config
+    return dict(_config.CREDENTIAL)
+
+
+def save_credential(cred_data: dict):
+    """保存凭证到 credential.json"""
+    with open(CREDENTIAL_FILE, "w", encoding="utf-8") as f:
+        json.dump(cred_data, f, indent=2, ensure_ascii=False)
+
+
+async def ensure_credential(cred=None):
+    """创建并确保 credential 有效，自动刷新并保存
+
+    Args:
+        cred: 可传入已有 Credential，否则从文件/config 加载
+
+    Returns:
+        有效的 Credential（已原地刷新）
+    """
+    from bilibili_api import Credential
+
+    if cred is None:
+        data = load_credential()
+        cred = Credential(**data)
+
+    if await cred.check_valid():
+        return cred
+
+    can_refresh = bool(cred.ac_time_value)
+    if can_refresh:
+        try:
+            need_refresh = await cred.check_refresh()
+        except Exception:
+            need_refresh = True
+    else:
+        need_refresh = False
+
+    if not need_refresh and not can_refresh:
+        print("⚠ Cookie 已失效且缺少 ac_time_value，无法自动刷新")
+        print("   请运行 python login_qrcode.py 重新登录")
+        return cred
+
+    if need_refresh:
+        try:
+            print("Cookie 即将过期，正在自动刷新...")
+            await cred.refresh()
+            save_credential({
+                "sessdata": cred.sessdata,
+                "bili_jct": cred.bili_jct,
+                "buvid3": cred.buvid3,
+                "buvid4": getattr(cred, "buvid4", "") or "",
+                "dedeuserid": getattr(cred, "dedeuserid", "") or "",
+                "ac_time_value": cred.ac_time_value,
+            })
+            print("✅ Cookie 刷新成功！")
+        except Exception as e:
+            print(f"❌ Cookie 刷新失败: {e}")
+            print("   请运行 python login_qrcode.py 重新登录")
+
+    return cred
+
+
 def serverchan_push(sckey: str, title: str, content: str) -> bool:
     """
     通过 Server酱 推送消息

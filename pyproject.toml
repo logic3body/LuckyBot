@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Bilibili lottery tool"
 requires-python = ">=3.10"
 dependencies = [
-    "bilibili-api",
+    "aiohttp>=3.9",
+    "bilibili-api-python>=17.0.0",
     "pyyaml>=6.0",
 ]

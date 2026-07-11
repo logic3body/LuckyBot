@@ -19,7 +19,7 @@ from .participant import (
     delete_dynamic,
 )
 from .notifier import check_lottery_winning, print_winning_notifications, LOTTERY_KEYWORDS, check_cookie_valid
-from .utils import COMMENT_PRESETS
+from .utils import COMMENT_PRESETS, load_credential, save_credential, ensure_credential
 
 __all__ = [
     "fetch_up_dynamics",
@@ -46,4 +46,7 @@ __all__ = [
     "LOTTERY_KEYWORDS",
     "check_cookie_valid",
     "COMMENT_PRESETS",
+    "load_credential",
+    "save_credential",
+    "ensure_credential",
 ]

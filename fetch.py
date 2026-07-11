@@ -8,8 +8,6 @@ import json
 import random
 import sys
 
-from bilibili_api import Credential
-
 from bilibili_lottery import (
     fetch_up_dynamics,
     fetch_follow_lotteries,
@@ -32,6 +30,7 @@ from bilibili_lottery.fetcher import LATEST_FILE, CLASSIFIED_DIR
 from bilibili_lottery.classifier import classify_dynamics, save_classified_prizes
 from bilibili_lottery.parser import extract_opus_links
 from bilibili_lottery.utils import (
+    ensure_credential,
     load_participated,
     add_participated,
     clean_old_logs,
@@ -49,7 +48,7 @@ async def cmd_fetch(uid: int):
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
     max_age = getattr(user_config, "MAX_DYNAMIC_AGE_HOURS", 168)
 
     print(f"正在获取 UID {uid} 的动态...")
@@ -92,7 +91,7 @@ async def cmd_run():
     # 清理旧日志
     clean_old_logs()
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
 
     # 构建 UID 列表：主目标 + 额外汇总号
     uids = [user_config.TARGET_UID]
@@ -269,7 +268,7 @@ async def cmd_forward():
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
     uid = user_config.TARGET_UID
 
     forward_file = CLASSIFIED_DIR / "forward.json"
@@ -324,7 +323,7 @@ async def cmd_interact():
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
     uid = user_config.TARGET_UID
 
     interact_file = CLASSIFIED_DIR / "interact.json"
@@ -373,7 +372,7 @@ async def cmd_check_lottery():
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
     sckey = getattr(user_config, 'SERVERCHAN_SCKEY', '') or ''
 
     print("正在检测通知中可能的中奖信息...")
@@ -414,7 +413,7 @@ async def cmd_check_cookie():
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
     sckey = getattr(user_config, 'SERVERCHAN_SCKEY', '') or ''
 
     print("正在检查 Cookie 有效性...")
@@ -429,7 +428,7 @@ async def cmd_check_cookie():
     # Server酱推送
     if sckey:
         title = "B站 Cookie 已失效"
-        content = "请尽快更新 config.py 中的 CREDENTIAL 配置\n\n包括: sessdata, bili_jct, buvid3\n\n获取方式: 登录 bilibili.com → F12 → Application → Cookies"
+        content = "请运行 python login_qrcode.py 重新扫码登录"
 
         print("正在推送 Server酱...")
         success = serverchan_push(sckey, title, content)
@@ -449,7 +448,7 @@ async def cmd_random_interact(count: int = 3):
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
 
     print(f"正在获取热门动态...")
     hot_items = await get_hot_dynamics(cred)
@@ -495,7 +494,7 @@ async def cmd_follow():
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
 
     # 获取自己的 UID
     from bilibili_api import user as user_module
@@ -564,7 +563,7 @@ async def cmd_clean(days: int = 30, confirm: bool = False):
         print("请先创建 config.py 文件")
         return
 
-    cred = Credential(**user_config.CREDENTIAL)
+    cred = await ensure_credential()
 
     # 获取自己的 UID（而非 TARGET_UID）
     self_info = await user_module.get_self_info(cred)
@@ -636,6 +635,7 @@ def main():
         print("  python fetch.py follow          - 参与关注动态流中的抽奖")
         print("  python fetch.py random [N]       - 随机转发 N 条热门动态（默认 3）")
         print("  python fetch.py clean [--days N] [--confirm] - 清理 N 天前的旧动态（默认 30）")
+        print("  python login_qrcode.py            - 扫码登录（替代手动复制 cookie）")
         return
 
     mode = sys.argv[1]
