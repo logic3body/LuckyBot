@@ -201,8 +201,24 @@ def save_credential(cred_data: dict):
         json.dump(cred_data, f, indent=2, ensure_ascii=False)
 
 
+def _cred_to_dict(cred) -> dict:
+    """将 Credential 对象转为可保存的字典"""
+    return {
+        "sessdata": cred.sessdata,
+        "bili_jct": cred.bili_jct,
+        "buvid3": cred.buvid3,
+        "buvid4": getattr(cred, "buvid4", "") or "",
+        "dedeuserid": getattr(cred, "dedeuserid", "") or "",
+        "ac_time_value": cred.ac_time_value,
+    }
+
+
 async def ensure_credential(cred=None):
     """创建并确保 credential 有效，自动刷新并保存
+
+    刷新策略（两阶段）：
+      1. 主动刷新 — 在 cookie 仍有效但即将过期时提前刷新
+      2. 紧急刷新 — cookie 已过期时尝试用 refresh_token 抢救
 
     Args:
         cred: 可传入已有 Credential，否则从文件/config 加载
@@ -216,38 +232,33 @@ async def ensure_credential(cred=None):
         data = load_credential()
         cred = Credential(**data)
 
-    if await cred.check_valid():
-        return cred
-
     can_refresh = bool(cred.ac_time_value)
+
+    # ── 阶段 1: 主动刷新（cookie 仍有效但即将过期） ──
     if can_refresh:
         try:
-            need_refresh = await cred.check_refresh()
+            if await cred.check_refresh():
+                print("🔄 Cookie 即将过期，正在自动刷新...")
+                await cred.refresh()
+                save_credential(_cred_to_dict(cred))
+                print("✅ Cookie 刷新成功！")
+                return cred
         except Exception:
-            need_refresh = True
-    else:
-        need_refresh = False
+            pass
 
-    if not need_refresh and not can_refresh:
-        print("⚠ Cookie 已失效且缺少 ac_time_value，无法自动刷新")
-        print("   请运行 python login_qrcode.py 重新登录")
-        return cred
-
-    if need_refresh:
-        try:
-            print("Cookie 即将过期，正在自动刷新...")
-            await cred.refresh()
-            save_credential({
-                "sessdata": cred.sessdata,
-                "bili_jct": cred.bili_jct,
-                "buvid3": cred.buvid3,
-                "buvid4": getattr(cred, "buvid4", "") or "",
-                "dedeuserid": getattr(cred, "dedeuserid", "") or "",
-                "ac_time_value": cred.ac_time_value,
-            })
-            print("✅ Cookie 刷新成功！")
-        except Exception as e:
-            print(f"❌ Cookie 刷新失败: {e}")
+    # ── 阶段 2: cookie 已过期 → 紧急刷新 ──
+    if not await cred.check_valid():
+        if can_refresh:
+            try:
+                print("🔄 Cookie 已过期，正在尝试刷新...")
+                await cred.refresh()
+                save_credential(_cred_to_dict(cred))
+                print("✅ Cookie 刷新成功！")
+            except Exception as e:
+                print(f"❌ Cookie 自动刷新失败: {e}")
+                print("   请运行 python login_qrcode.py 重新登录")
+        else:
+            print("⚠ Cookie 已失效且缺少 ac_time_value，无法自动刷新")
             print("   请运行 python login_qrcode.py 重新登录")
 
     return cred
